@@ -16,6 +16,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { Invoice, InvoiceStatus } from "@/lib/types";
+import { showError } from "@/utils/toast";
 
 const salesChannelLabels: Record<string, string> = {
   pos: "POS",
@@ -65,9 +66,13 @@ export function InvoiceTable({ invoices, getBranchName, onView, onUpdateStatus, 
           selvaLawEnabled: taxConfig.selvaLawEnabled,
         }
       : undefined;
-    const sellerInfo = await getSellerInfo();
-    setPreviewInvoice(invoice);
-    setPreviewSellerInfo(sellerInfo);
+    try {
+      const sellerInfo = await getSellerInfo(invoice.branch_id);
+      setPreviewInvoice(invoice);
+      setPreviewSellerInfo(sellerInfo);
+    } catch {
+      showError("No se pudieron cargar los datos de la sede. Intenta nuevamente.");
+    }
   };
 
   const getPrintOptions = () => {

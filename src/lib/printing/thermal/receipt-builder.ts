@@ -231,7 +231,7 @@ export function buildTextReceipt(
   lines.push(centerLine(`RUC: ${sellerInfo.ruc}`, w));
 
   const addrParts = [sellerInfo.direccion, sellerInfo.distrito, sellerInfo.provincia, sellerInfo.departamento].filter(Boolean);
-  for (const part of wrapText(addrParts.join(", "), w)) {
+  for (const part of wrapText(addrParts.length ? `Domicilio fiscal: ${addrParts.join(", ")}` : "", w)) {
     lines.push(centerLine(part, w));
   }
   if (sellerInfo.phone) {
@@ -248,6 +248,11 @@ export function buildTextReceipt(
 
   if (options.branchName) {
     lines.push(centerLine(`Sede: ${options.branchName}`, w));
+  }
+  if (sellerInfo.branchAddress) {
+    for (const part of wrapText(`Direccion de sede: ${sellerInfo.branchAddress}`, w)) {
+      lines.push(centerLine(part, w));
+    }
   }
 
   sep();
@@ -458,7 +463,7 @@ export function buildEscposReceipt(
     builder.bold(true).line(`RUC: ${sellerInfo.ruc}`);
 
     const addrParts = [sellerInfo.direccion, sellerInfo.distrito, sellerInfo.provincia, sellerInfo.departamento].filter(Boolean);
-    for (const part of wrapText(addrParts.join(", "), w)) {
+    for (const part of wrapText(addrParts.length ? `Domicilio fiscal: ${addrParts.join(", ")}` : "", w)) {
       builder.line(part);
     }
 
@@ -483,6 +488,11 @@ export function buildEscposReceipt(
 
     if (options.branchName) {
       builder.line(`Sede: ${options.branchName}`);
+    }
+    if (sellerInfo.branchAddress) {
+      for (const part of wrapText(`Direccion de sede: ${sellerInfo.branchAddress}`, w)) {
+        builder.line(part);
+      }
     }
 
     builder.line(separator("-", w));

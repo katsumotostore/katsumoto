@@ -286,7 +286,7 @@ export function usePosInvoice(cart: CartItem[], calc: InvoiceCalculation | null)
     try {
       const inv = await invoiceService.getById(lastInvoiceId);
       if (!inv) return;
-      const sellerInfo = await getSellerInfo();
+      const sellerInfo = await getSellerInfo(inv.branch_id);
       await openPdfInTab(() =>
         generateInvoicePDF(inv, sellerInfo, { branchName: activeBranch?.name, taxConfig: pdfTaxConfig, action: "preview" })
       );
@@ -307,7 +307,7 @@ export function usePosInvoice(cart: CartItem[], calc: InvoiceCalculation | null)
     try {
       const inv = await invoiceService.getById(lastInvoiceId);
       if (!inv) return;
-      const sellerInfo = await getSellerInfo();
+      const sellerInfo = await getSellerInfo(inv.branch_id);
       await openPdfInTab(() =>
         import("@/lib/printing/formats/thermal-ticket").then(m =>
           m.generateThermalTicket(inv, sellerInfo, {

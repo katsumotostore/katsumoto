@@ -3,7 +3,7 @@ import type { PdfContext } from "../types";
 import { INVOICE_TYPE_SUNAT_CODE, DOCUMENT_TYPE_SUNAT_CODE } from "../../types/sunat";
 import { INVOICE_TYPES } from "../../constants";
 
-const QR_SIZE_MM = 22;
+const QR_SIZE_MM = 28;
 
 export async function drawQrHash(ctx: PdfContext, y: number): Promise<number> {
   const { doc, invoice, sellerInfo, pageWidth, margin } = ctx;
@@ -33,7 +33,7 @@ export async function drawQrHash(ctx: PdfContext, y: number): Promise<number> {
   let qrBase64: string | null = null;
   try {
     qrBase64 = await QRCode.toDataURL(qrData, {
-      width: 200, margin: 1,
+      width: 400, margin: 4,
       color: { dark: "#000000", light: "#ffffff" },
     });
   } catch { /* skip */ }
@@ -57,8 +57,9 @@ export async function drawQrHash(ctx: PdfContext, y: number): Promise<number> {
     doc.setFontSize(6.5);
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "bold");
-    doc.text(`Hash: ${invoice.sunat_hash}`, margin, y, { maxWidth: textW });
-    y += 4;
+    const hashLines = doc.splitTextToSize(`Hash: ${invoice.sunat_hash}`, textW);
+    doc.text(hashLines, margin, y);
+    y += hashLines.length * 3.5 + 2;
   }
 
   if (!hasHash) {

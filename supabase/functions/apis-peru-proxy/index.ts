@@ -56,6 +56,7 @@ const ALLOWED_ORIGINS = [
   "https://kdsjojrrspzmufdumywd.supabase.co",
   "https://katsumoto.shop",
   "https://katsumoto-fact.pages.dev",
+  "https://katsumoto.pages.dev",
 ];
 
 function corsHeaders(req: Request) {

@@ -13,9 +13,10 @@ export interface SellerInfo {
   email: string;
   logoUrl?: string;
   ticketFooter?: string;
+  branchAddress?: string;
 }
 
-export async function getSellerInfo(): Promise<SellerInfo> {
+export async function getSellerInfo(branchId?: string): Promise<SellerInfo> {
   const orgId = await getCurrentOrgId();
 
   const [orgResult, sunatResult] = await Promise.all([
@@ -33,6 +34,20 @@ export async function getSellerInfo(): Promise<SellerInfo> {
 
   const org = orgResult.data;
   const sunat = sunatResult.data;
+  let phone = org?.phone || "";
+  let branchAddress: string | undefined;
+  if (branchId) {
+    const { data: branch, error } = await supabase
+      .from("branches")
+      .select("phone, address")
+      .eq("organization_id", orgId)
+      .eq("id", branchId)
+      .single();
+    if (error) throw error;
+    if (!branch) throw new Error("No se encontro la sede del comprobante");
+    phone = branch.phone?.trim() || "";
+    branchAddress = branch.address?.trim() || undefined;
+  }
 
   return {
     ruc: sunat?.ruc || org?.ruc || "",
@@ -43,7 +58,8 @@ export async function getSellerInfo(): Promise<SellerInfo> {
     provincia: sunat?.provincia || "",
     distrito: sunat?.distrito || "",
     ubigeo: sunat?.ubigeo || "",
-    phone: org?.phone || "",
+    phone,
+    branchAddress,
     email: org?.email || "",
     logoUrl: org?.logo_url || undefined,
     ticketFooter: sunat?.ticket_footer || undefined,

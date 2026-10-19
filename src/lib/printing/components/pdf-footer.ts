@@ -1,59 +1,28 @@
 import type { PdfContext } from "../types";
-import { IGV_RATE } from "../../constants";
 import { getLegalBasisText, determineTax } from "../../tax-engine";
+import { flowText } from "../layout";
 
 export function drawFooter(ctx: PdfContext, y: number): number {
-  const { doc, invoice, sellerInfo, options, pageWidth, margin, contentWidth } = ctx;
-
-  if (invoice.notes) {
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("Observaciones:", margin, y);
-    y += 4;
-    doc.setTextColor(0, 0, 0);
-    doc.text(invoice.notes, margin, y, { maxWidth: contentWidth });
-    y += 8;
-  }
-
+  const { doc, invoice, options, margin, contentWidth } = ctx;
+  if (invoice.descripcion_motivo) y = flowText(ctx, `Motivo de la nota: ${invoice.descripcion_motivo}`, y);
+  if (invoice.notes) y = flowText(ctx, `Observaciones: ${invoice.notes}`, y);
   if (options.taxConfig && invoice.exonerada_cents > 0) {
-    const determination = determineTax({
-      sellerProvinceCode: options.taxConfig.sellerProvinceCode,
-      sellerDistrictCode: options.taxConfig.sellerDistrictCode,
-      productFamily: null,
-      selvaLawEnabled: options.taxConfig.selvaLawEnabled,
-    });
-    const legalText = getLegalBasisText(
-      determination,
-      options.taxConfig.sellerProvinceCode,
-      options.taxConfig.sellerDistrictCode,
-    );
-    if (legalText) {
-      doc.setFillColor(240, 253, 244);
-      const textLines = doc.splitTextToSize(legalText, contentWidth);
-      const boxHeight = textLines.length * 3.5 + 8;
-      doc.roundedRect(margin, y, contentWidth, boxHeight, 2, 2, "F");
-      doc.setFontSize(6.5);
-      doc.setTextColor(0, 0, 0);
-      doc.text("Base Legal:", margin + 3, y + 4);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(0, 0, 0);
-      doc.text(textLines, margin + 3, y + 8);
-      y += boxHeight + 4;
-    }
+    const config = options.taxConfig;
+    const determination = determineTax({ ...config, productFamily: null });
+    const legal = getLegalBasisText(determination, config.sellerProvinceCode, config.sellerDistrictCode);
+    if (legal) y = flowText(ctx, legal, y, 7.5);
   }
-
-  const footerY = doc.internal.pageSize.getHeight() - 15;
-  doc.setFontSize(7);
-  doc.setTextColor(0, 0, 0);
-  const footerName = sellerInfo.nombreComercial || sellerInfo.razonSocial;
-  doc.text(`Documento generado por ${footerName}`, pageWidth / 2, footerY, { align: "center" });
-  doc.text(
-    `emitido el ${new Date().toLocaleDateString("es-PE")} · IGV ${(IGV_RATE * 100).toFixed(0)}% conforme a normativa SUNAT · Catálogo No. 7`,
-    pageWidth / 2,
-    footerY + 4,
-    { align: "center" },
-  );
-
+  const pages = doc.getNumberOfPages();
+  for (let page = 1; page <= pages; page++) {
+    doc.setPage(page);
+    const bottom = doc.internal.pageSize.getHeight() - 14;
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.25);
+    doc.line(margin, bottom - 4, margin + contentWidth, bottom - 4);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    doc.text(`RUC ${ctx.sellerInfo.ruc} | ${invoice.number}`, margin, bottom);
+    doc.text(`Pagina ${page} de ${pages}`, margin + contentWidth, bottom, { align: "right" });
+  }
   return y;
 }

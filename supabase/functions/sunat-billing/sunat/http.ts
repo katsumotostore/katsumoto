@@ -5,12 +5,13 @@ const ALLOWED_ORIGINS = [
   "http://localhost:1420",
   "https://katsumoto.shop",
   "https://katsumoto-fact.pages.dev",
+  "https://katsumoto.pages.dev",
 ];
 
 let _currentOrigin = ALLOWED_ORIGINS[0];
 
 function getAllowOrigin(origin: string): string {
-  if (ALLOWED_ORIGINS.some((o) => origin.startsWith(o))) return origin;
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
   return ALLOWED_ORIGINS[0];
 }
 

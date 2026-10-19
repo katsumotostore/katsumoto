@@ -13,6 +13,7 @@ import { InvoicePreviewDialog } from "./InvoicePreviewDialog";
 import { useTaxConfig } from "@/lib/tax-config-context";
 import { useSunatMutations } from "@/hooks/useSunatConfig";
 import { invoiceService } from "@/services/invoice.service";
+import { showError } from "@/utils/toast";
 import type { Invoice } from "@/lib/types";
 
 const salesChannelLabels: Record<string, string> = {
@@ -35,18 +36,22 @@ export function InvoiceDetail({ invoice, open, onOpenChange, getBranchName }: In
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewSellerInfo, setPreviewSellerInfo] = useState<SellerInfo | null>(null);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const handlePreview = async () => {
-    if (!invoice) return;
+    if (!invoice || loadingPreview) return;
+    setLoadingPreview(true);
     try {
-      const sellerInfo = await getSellerInfo();
+      const sellerInfo = await getSellerInfo(invoice.branch_id);
       setPreviewSellerInfo(sellerInfo);
-      const full = invoice.items?.length ? invoice : await invoiceService.getById(invoice.id);
-      setPreviewInvoice(full || invoice);
+      const full = await invoiceService.getById(invoice.id);
+      if (!full) throw new Error("No se encontro el comprobante");
+      setPreviewInvoice(full);
       setPreviewOpen(true);
     } catch {
-      setPreviewInvoice(invoice);
-      setPreviewOpen(true);
+      showError("No se pudo cargar el comprobante completo. Intenta nuevamente.");
+    } finally {
+      setLoadingPreview(false);
     }
   };
 
@@ -77,8 +82,8 @@ export function InvoiceDetail({ invoice, open, onOpenChange, getBranchName }: In
                 {statusConfig[invoice.status].label}
               </span>
             </DialogTitle>
-            <Button variant="outline" size="sm" className="rounded-xl gap-1.5" onClick={handlePreview}>
-              <Download className="w-4 h-4" />PDF
+            <Button variant="outline" size="sm" className="rounded-xl gap-1.5" onClick={handlePreview} disabled={loadingPreview}>
+              {loadingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}PDF
             </Button>
             {invoice.status === "issued" && !invoice.sunat_hash && (
               <Button

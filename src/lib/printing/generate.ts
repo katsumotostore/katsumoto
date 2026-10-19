@@ -9,45 +9,10 @@ import { drawTotals } from "./components/pdf-totals";
 import { drawQrHash } from "./components/pdf-qr-hash";
 import { drawFooter } from "./components/pdf-footer";
 import { generateThermalTicket } from "./formats/thermal-ticket";
-import { INVOICE_TYPES } from "../constants";
+import { ensureSpace } from "./layout";
 
-const FOOTER_SPACE = 22;
-const TOTALS_HEIGHT = 80;
-const QR_HASH_HEIGHT = 32;
-
-function drawMiniHeader(ctx: PdfContext): number {
-  const { doc, invoice, sellerInfo, pageWidth, margin } = ctx;
-  const y = margin;
-
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  doc.text(sellerInfo.nombreComercial || sellerInfo.razonSocial, margin, y);
-
-  doc.setTextColor(0, 0, 0);
-  doc.setFont("helvetica", "bold");
-  doc.text(`RUC: ${sellerInfo.ruc}`, margin + 70, y);
-
-  const typeLabel = INVOICE_TYPES[invoice.invoice_type]?.label || invoice.invoice_type.toUpperCase();
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  doc.text(`${typeLabel} ${invoice.number}`, pageWidth - margin, y, { align: "right" });
-
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.3);
-  doc.line(margin, y + 4, pageWidth - margin, y + 4);
-
-  return y + 10;
-}
-
-function ensureSpace(ctx: PdfContext, y: number, needed: number): number {
-  const pageHeight = ctx.doc.internal.pageSize.getHeight();
-  if (y + needed > pageHeight - FOOTER_SPACE) {
-    ctx.doc.addPage();
-    return drawMiniHeader(ctx);
-  }
-  return y;
-}
+const TOTALS_HEIGHT = 76;
+const QR_HASH_HEIGHT = 40;
 
 export async function generateInvoice(invoice: Invoice, sellerInfo: SellerInfo, options?: PrintOptions): Promise<jsPDF> {
   const opts: PrintOptions = options || {};
@@ -58,7 +23,7 @@ export async function generateInvoice(invoice: Invoice, sellerInfo: SellerInfo, 
 
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 20;
+  const margin = 16;
   const contentWidth = pageWidth - margin * 2;
 
   const ctx: PdfContext = {

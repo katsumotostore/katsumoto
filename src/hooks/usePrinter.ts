@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { usePlatform, loadPrinterConfig, savePrinterConfig } from "@/lib/platform";
 import { buildEscposReceipt, buildTestReceipt, type ReceiptOptions, type PaperWidth } from "@/lib/printing/thermal";
 import { generateThermalTicket } from "@/lib/printing/formats/thermal-ticket";
@@ -23,7 +23,6 @@ export interface UsePrinterReturn {
   refreshStatus: () => Promise<void>;
 }
 
-const SELLER_INFO_TTL = 5 * 60 * 1000;
 const PRINT_RETRIES = 1;
 
 export function usePrinter(): UsePrinterReturn {
@@ -31,8 +30,6 @@ export function usePrinter(): UsePrinterReturn {
   const [isPrinting, setIsPrinting] = useState(false);
   const [status, setStatus] = useState<PrinterStatus>("no-config");
   const [config, setConfig] = useState<PrinterConfig>(loadPrinterConfig);
-  const sellerInfoRef = useRef<Awaited<ReturnType<typeof getSellerInfo>> | null>(null);
-  const sellerInfoTimestamp = useRef(0);
 
   const refreshStatus = useCallback(async () => {
     setStatus("checking");
@@ -52,18 +49,8 @@ export function usePrinter(): UsePrinterReturn {
     });
   }, []);
 
-  const _getSellerInfo = useCallback(async () => {
-    const now = Date.now();
-    if (sellerInfoRef.current && now - sellerInfoTimestamp.current < SELLER_INFO_TTL) {
-      return sellerInfoRef.current;
-    }
-    sellerInfoRef.current = await getSellerInfo();
-    sellerInfoTimestamp.current = now;
-    return sellerInfoRef.current;
-  }, []);
-
   const _doPrint = useCallback(async (invoice: Invoice, opts?: Partial<ReceiptOptions>) => {
-    const sellerInfo = await _getSellerInfo();
+    const sellerInfo = await getSellerInfo(invoice.branch_id);
     const receiptOpts: ReceiptOptions = {
       paperWidth: config.paperWidth as PaperWidth,
       autoCut: config.autoCut,
@@ -81,7 +68,7 @@ export function usePrinter(): UsePrinterReturn {
         action: "preview",
       }));
     }
-  }, [config, isTauri, printer, _getSellerInfo]);
+  }, [config, isTauri, printer]);
 
   const printReceipt = useCallback(async (invoice: Invoice, opts?: Partial<ReceiptOptions>, retries = PRINT_RETRIES) => {
     setIsPrinting(true);

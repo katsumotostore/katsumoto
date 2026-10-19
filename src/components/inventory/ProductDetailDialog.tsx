@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useProducts } from "@/hooks/useProducts";
 import { useBranches } from "@/hooks/useBranches";
 import { useStockMovements } from "@/hooks/useStockMovements";
@@ -11,11 +11,9 @@ import { ProductOverviewTab } from "./ProductOverviewTab";
 import { ProductStockTab } from "./ProductStockTab";
 import { ProductMachinesTab } from "./ProductMachinesTab";
 import { ProductMovementsTab } from "./ProductMovementsTab";
-import { downloadLabels } from "@/lib/printing/labels/generate-labels";
-import { getSellerInfo } from "@/lib/printing/seller-info";
-import { showSuccess } from "@/utils/toast";
+import { PrintLabelsDialog } from "./PrintLabelsDialog";
+import { barcodeStatus } from "@/lib/product-labels";
 import type { Product } from "@/lib/types";
-import type { SellerInfo } from "@/lib/printing/seller-info";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowUpDown, Pencil, FileText,
   DollarSign, Warehouse, BarChart3, Cog, Activity,
-  Tag, Boxes, Barcode, Loader2,
+  Tag, Boxes, Barcode,
 } from "lucide-react";
 
 interface ProductDetailDialogProps {
@@ -34,28 +32,18 @@ interface ProductDetailDialogProps {
   onAdjustStock: (product: Product) => void;
 }
 
-export function ProductDetailDialog({ product, open, onClose, onEdit, onAdjustStock }: ProductDetailDialogProps) {
-  const { productMachines, machineModels } = useProducts();
+export function ProductDetailDialog({ product: selectedProduct, open, onClose, onEdit, onAdjustStock }: ProductDetailDialogProps) {
+  const { products, productMachines, machineModels } = useProducts();
   const { branches, branchStocks } = useBranches();
   const { movements: allMovements } = useStockMovements();
   const [kardexOpen, setKardexOpen] = useState(false);
-  const [labelLoading, setLabelLoading] = useState(false);
+  const [labelsOpen, setLabelsOpen] = useState(false);
 
+  const latestBarcode = products.find(p => p.id === selectedProduct?.id)?.barcode;
+  const product = selectedProduct ? { ...selectedProduct, barcode: latestBarcode ?? selectedProduct.barcode } : null;
   if (!product) return null;
 
-  const handlePrintLabel = async () => {
-    if (!product.barcode || product.barcode.length < 13) return;
-    setLabelLoading(true);
-    try {
-      const sellerInfo = (await getSellerInfo()) as unknown as SellerInfo;
-      downloadLabels({ sellerInfo, products: [product] });
-      showSuccess("Etiqueta generada");
-    } catch {
-      // handled
-    } finally {
-      setLabelLoading(false);
-    }
-  };
+  const labelStatus = barcodeStatus(products.find(p => p.id === product.id) || product, products);
 
   const machines = productMachines
     .filter(pm => pm.product_id === product.id)
@@ -167,15 +155,10 @@ export function ProductDetailDialog({ product, open, onClose, onEdit, onAdjustSt
               size="sm"
               variant="outline"
               className="rounded-xl h-8 text-xs"
-              onClick={handlePrintLabel}
-              disabled={!product.barcode || product.barcode.length < 13 || labelLoading}
+              onClick={() => setLabelsOpen(true)}
             >
-              {labelLoading ? (
-                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-              ) : (
-                <Barcode className="w-3.5 h-3.5 mr-1.5" />
-              )}
-              Etiqueta
+              <Barcode className="w-3.5 h-3.5 mr-1.5" />
+              {labelStatus === "missing" ? "Generar codigo y etiqueta" : labelStatus === "review" ? "Revisar codigo" : "Descargar etiqueta"}
             </Button>
             <div className="ml-auto">
               <Badge variant="outline" className={`rounded-lg text-[10px] border ${taxInfo?.color || "border-border"}`}>
@@ -211,6 +194,7 @@ export function ProductDetailDialog({ product, open, onClose, onEdit, onAdjustSt
       </Dialog>
 
       <ProductKardex product={product} open={kardexOpen} onClose={() => setKardexOpen(false)} />
+      <PrintLabelsDialog open={labelsOpen} onClose={() => setLabelsOpen(false)} preselectedIds={[product.id]} />
     </>
   );
 }

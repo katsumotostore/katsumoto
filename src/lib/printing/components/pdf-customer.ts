@@ -2,31 +2,17 @@ import type { PdfContext } from "../types";
 
 export function drawCustomer(ctx: PdfContext, y: number): number {
   const { doc, invoice, margin, contentWidth } = ctx;
-
-  doc.setDrawColor(0, 0, 0);
-  doc.setFillColor(248, 249, 250);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(margin, y, contentWidth, 22, 3, 3, "FD");
-  y += 4;
-
-  doc.setFontSize(7);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  doc.text("CLIENTE", margin + 4, y);
-  y += 5;
-
   doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  doc.text(invoice.customer?.name || "—", margin + 4, y);
-  y += 5;
-
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  const docLabel = invoice.customer?.document_type || "DOC";
-  doc.text(`${docLabel}: ${invoice.customer?.document_number || "—"}`, margin + 4, y);
-  y += 8;
-
-  return y;
+  const name = doc.splitTextToSize(invoice.customer?.name || "Consumidor Final", contentWidth - 10);
+  const height = 18 + name.length * 5;
+  doc.setLineWidth(0.25);
+  doc.rect(margin, y, contentWidth, height);
+  doc.setFontSize(7.5);
+  doc.text("CLIENTE / RAZON SOCIAL", margin + 5, y + 5);
+  doc.setFontSize(10);
+  doc.text(name, margin + 5, y + 11, { lineHeightFactor: 1.4 });
+  doc.setFontSize(8.5);
+  doc.text(`${invoice.customer?.document_type || "DOC"}: ${invoice.customer?.document_number || "-"}`, margin + 5, y + height - 4);
+  return y + height + 7;
 }

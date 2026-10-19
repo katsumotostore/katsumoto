@@ -120,6 +120,7 @@ export default function Inventory() {
   const [categoryImageOpen, setCategoryImageOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [labelsOpen, setLabelsOpen] = useState(false);
+  const [labelProductIds, setLabelProductIds] = useState<string[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
@@ -381,7 +382,7 @@ export default function Inventory() {
               <Button variant="outline" onClick={() => setImportOpen(true)} disabled={branches.length === 0} className="rounded-xl">
                 <Upload className="w-4 h-4 mr-2" />Importar
               </Button>
-              <Button variant="outline" onClick={() => setLabelsOpen(true)} disabled={sorted.length === 0} className="rounded-xl">
+              <Button variant="outline" onClick={() => { setLabelProductIds([]); setLabelsOpen(true); }} disabled={sorted.length === 0} className="rounded-xl">
                 <Barcode className="w-4 h-4 mr-2" />Etiquetas
               </Button>
               <Button onClick={openNew} disabled={branches.length === 0} className="rounded-xl bg-orange-600 hover:bg-orange-700">
@@ -402,7 +403,7 @@ export default function Inventory() {
             priceTiers={priceTiers} productMachines={productMachines} machineModels={machineModels}
             marginMap={marginMap} onViewDetail={openDetail} onAdjustStock={openAdjust} onEdit={openEdit}
             onDelete={(id) => { setDeleteId(id); setDeleteOpen(true); }}
-            onPrintLabel={(product) => { setLabelsOpen(true); }}
+            onPrintLabel={(product) => { setLabelProductIds([product.id]); setLabelsOpen(true); }}
           />
 
           <PaginationControls pagination={pagination} totalItems={sorted.length} itemLabel="productos" />
@@ -469,7 +470,7 @@ export default function Inventory() {
 
       <CSVImportDialog open={importOpen} onOpenChange={setImportOpen} />
 
-      <PrintLabelsDialog open={labelsOpen} onClose={() => setLabelsOpen(false)} />
+      <PrintLabelsDialog open={labelsOpen} onClose={() => setLabelsOpen(false)} preselectedIds={labelProductIds} />
     </div>
   );
 }

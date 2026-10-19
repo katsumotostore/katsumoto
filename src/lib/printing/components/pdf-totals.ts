@@ -2,13 +2,14 @@ import type { PdfContext } from "../types";
 import { formatCents } from "../../format";
 import { IGV_RATE, PAYMENT_METHODS } from "../../constants";
 import { getNetBaseAmount } from "../../calculations";
+import { centsToText } from "../amount-words";
 
 export function drawTotals(ctx: PdfContext, y: number): number {
   const { doc, invoice, pageWidth, margin } = ctx;
 
   const col1X = pageWidth - margin - 80;
   const col2X = pageWidth - margin;
-  const lineH = 4.5;
+  const lineH = 5.5;
 
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.3);
@@ -19,6 +20,14 @@ export function drawTotals(ctx: PdfContext, y: number): number {
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
   doc.text("DESGLOSE TRIBUTARIO", margin, y);
+  doc.setFontSize(8);
+  const amountLines = doc.splitTextToSize(`SON: ${centsToText(invoice.total_cents)}`, col1X - margin - 10);
+  doc.text(amountLines, margin, y + 7, { lineHeightFactor: 1.5 });
+  if (invoice.payment_method === "cash" && ctx.options.cashReceivedCents !== undefined) {
+    const cashY = y + 12 + amountLines.length * 4.3;
+    doc.text(`Recibido: ${formatCents(ctx.options.cashReceivedCents)}`, margin, cashY);
+    doc.text(`Vuelto: ${formatCents(Math.max(0, ctx.options.cashReceivedCents - invoice.total_cents))}`, margin, cashY + 5);
+  }
   y += 6;
 
   doc.setFont("helvetica", "bold");
@@ -73,12 +82,12 @@ export function drawTotals(ctx: PdfContext, y: number): number {
   doc.line(col1X, y, col2X, y);
   y += 5;
 
-  doc.setFontSize(11);
+  doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
   doc.text("TOTAL", col1X, y);
   doc.text(formatCents(invoice.total_cents), col2X, y, { align: "right" });
-  y += 8;
+  y += 10;
 
   if (invoice.payment_method) {
     const methodLabel = PAYMENT_METHODS[invoice.payment_method]?.label || invoice.payment_method;

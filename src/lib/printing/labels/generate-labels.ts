@@ -1,6 +1,5 @@
 import jsPDF from "jspdf";
 import { encodeEAN13, isValidEAN13 } from "@/lib/barcode";
-import { formatCents } from "@/lib/format";
 import type { Product } from "@/lib/types";
 import type { SellerInfo } from "../seller-info";
 
@@ -12,21 +11,18 @@ const MARGIN_X_MM = 8.5;
 const MARGIN_Y_MM = 14;
 const COLS = 3;
 const ROWS = 8;
-const LABELS_PER_PAGE = COLS * ROWS;
 
 const LABEL_W_PT = LABEL_W_MM * MM_TO_PT;
 const LABEL_H_PT = LABEL_H_MM * MM_TO_PT;
 const MARGIN_X_PT = MARGIN_X_MM * MM_TO_PT;
 const MARGIN_Y_PT = MARGIN_Y_MM * MM_TO_PT;
 
-// A4
-const PAGE_W = 210 * MM_TO_PT;
-const PAGE_H = 297 * MM_TO_PT;
 
 export interface LabelOptions {
   sellerInfo: SellerInfo;
   products: Product[];
   copies?: number;
+  copiesByProduct?: Record<string, number>;
 }
 
 function drawEan13Barcode(
@@ -53,15 +49,12 @@ function drawEan13Barcode(
   doc.setFontSize(5.5);
   doc.setFont("courier", "normal");
   doc.setTextColor(0, 0, 0);
-  doc.text(code[0], x, y + height + 3, { baseline: "top" });
-  doc.text(code.slice(1, 7), x + modW * 4, y + height + 3, {
-    baseline: "top",
-    charSpace: "auto",
-  } as unknown as Parameters<typeof doc.text>[3]);
-  doc.text(code.slice(7, 13), x + modW * 50, y + height + 3, {
-    baseline: "top",
-    charSpace: "auto",
-  } as unknown as Parameters<typeof doc.text>[3]);
+  doc.setCharSpace(0);
+  doc.text(code[0], x - 5, y + height + 3, { baseline: "top", align: "center" });
+  for (let i = 0; i < 6; i++) {
+    doc.text(code[i + 1], x + modW * (6.5 + i * 7), y + height + 3, { baseline: "top", align: "center" });
+    doc.text(code[i + 7], x + modW * (53.5 + i * 7), y + height + 3, { baseline: "top", align: "center" });
+  }
 }
 
 function drawSingleLabel(
@@ -75,66 +68,64 @@ function drawSingleLabel(
   const bx = x + PADDING;
   const by = y + PADDING;
   const bw = LABEL_W_PT - 2 * PADDING;
-  const bh = LABEL_H_PT - 2 * PADDING;
 
   doc.setDrawColor(220, 220, 220);
   doc.setLineWidth(0.1);
   doc.rect(x, y, LABEL_W_PT, LABEL_H_PT);
 
   const businessName = seller.nombreComercial || seller.razonSocial || "";
-  const barcodeY = by + 4;
+  const barcodeY = by + 22;
   const barcodeH = 10 * MM_TO_PT;
 
   doc.setFontSize(5);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(40, 40, 40);
+  doc.setTextColor(0, 0, 0);
   doc.text(businessName.toUpperCase(), bx, by, { baseline: "top" });
 
   doc.setFontSize(6.5);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
   const name = product.name.length > 28 ? product.name.slice(0, 27) + "\u2026" : product.name;
-  doc.text(name, bx, barcodeY - 1.5, { baseline: "bottom" });
+  doc.text(name, bx, by + 9, { baseline: "top" });
 
-  drawEan13Barcode(doc, bx, barcodeY, product.barcode, bw, barcodeH);
+  drawEan13Barcode(doc, bx + 12, barcodeY, product.barcode, bw - 24, barcodeH);
 
-  const infoY = barcodeY + barcodeH + 6;
+  const infoY = barcodeY + barcodeH + 13;
   doc.setFontSize(5.5);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(80, 80, 80);
+  doc.setTextColor(0, 0, 0);
   doc.text(`SKU: ${product.sku}`, bx, infoY, { baseline: "top" });
-
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(230, 80, 0);
-  const price = formatCents(product.price_cents);
-  doc.text(price, bx + bw, infoY, { baseline: "top", align: "right" });
 
   doc.setFontSize(5);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(80, 80, 80);
-  doc.text(product.unit, bx + bw, infoY + 4, { baseline: "top", align: "right" });
+  doc.setTextColor(0, 0, 0);
+  doc.text(product.unit, bx, infoY + 9, { baseline: "top" });
 }
 
 export function generateProductLabels(options: LabelOptions): jsPDF {
-  const { sellerInfo, products, copies = 1 } = options;
+  const { sellerInfo, products, copies = 1, copiesByProduct = {} } = options;
+  if (!products.length) throw new Error("Selecciona al menos un producto");
+  const labels = products.flatMap(product => {
+    if (!isValidEAN13(product.barcode)) throw new Error(`Revisar codigo de ${product.sku}`);
+    const quantity = copiesByProduct[product.id] ?? copies;
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) throw new Error("La cantidad debe estar entre 1 y 99");
+    return Array.from({ length: quantity }, () => product);
+  });
+  if (labels.length > 5000) throw new Error("El limite es 5000 etiquetas por PDF");
 
   const doc = new jsPDF({ unit: "pt", format: "a4" });
-  const totalPages = Math.ceil((products.length * copies) / LABELS_PER_PAGE);
 
   let labelIdx = 0;
   let pageCount = 0;
   let printed = 0;
 
-  while (printed < products.length * copies) {
+  while (printed < labels.length) {
     if (pageCount > 0) doc.addPage();
     pageCount++;
 
     for (let row = 0; row < ROWS; row++) {
       for (let col = 0; col < COLS; col++) {
-        const copyIdx = Math.floor(labelIdx / products.length);
-        const prodIdx = labelIdx % products.length;
-        const product = products[prodIdx];
+        const product = labels[labelIdx];
 
         const lx = MARGIN_X_PT + col * LABEL_W_PT;
         const ly = MARGIN_Y_PT + row * LABEL_H_PT;
@@ -143,9 +134,9 @@ export function generateProductLabels(options: LabelOptions): jsPDF {
         labelIdx++;
         printed++;
 
-        if (printed >= products.length * copies) break;
+        if (printed >= labels.length) break;
       }
-      if (printed >= products.length * copies) break;
+      if (printed >= labels.length) break;
     }
   }
 

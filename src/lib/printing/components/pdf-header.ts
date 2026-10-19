@@ -1,118 +1,72 @@
 import type { PdfContext } from "../types";
 import { INVOICE_TYPES } from "../../constants";
-import { loadImageAsBase64 } from "../load-image";
-
-const LOGO_MAX_W = 28;
-const LOGO_MAX_H = 14;
-
-function formatDatePDF(dateStr: string): string {
-  const parts = dateStr.slice(0, 10).split("-");
-  if (parts.length === 3 && parts[0] && parts[1] && parts[2]) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  return new Date(dateStr).toLocaleDateString("es-PE", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-}
+import { loadPrintLogo } from "../load-image";
+import { issueDate } from "../layout";
 
 export async function drawHeader(ctx: PdfContext, y: number): Promise<number> {
-  const { doc, invoice, sellerInfo, options, pageWidth, margin } = ctx;
-  const rightX = pageWidth - margin;
-  let textX = margin;
-
-  if (sellerInfo.logoUrl) {
-    const imgData = await loadImageAsBase64(sellerInfo.logoUrl);
-    if (imgData) {
-      try {
-        doc.addImage(imgData, "AUTO", margin, y, LOGO_MAX_W, LOGO_MAX_H);
-        textX = margin + LOGO_MAX_W + 5;
-      } catch {
-        // ignore
-      }
-    }
-  }
-
-  const bizName = sellerInfo.nombreComercial || sellerInfo.razonSocial || "KATSUMOTO";
-  const legalName = sellerInfo.nombreComercial && sellerInfo.razonSocial && sellerInfo.nombreComercial !== sellerInfo.razonSocial
-    ? sellerInfo.razonSocial
-    : null;
-
-  doc.setFontSize(16);
+  const { doc, invoice, sellerInfo, options, margin, contentWidth } = ctx;
+  const right = margin + contentWidth;
+  const leftWidth = contentWidth - 74;
+  const start = y;
+  doc.setTextColor(0);
+  doc.setDrawColor(0);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  doc.text(bizName.toUpperCase(), textX, y + 7);
-
-  let nextY = y + 14;
-  if (legalName) {
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text(legalName, textX, nextY);
-    nextY += 6;
+  const logo = await loadPrintLogo(sellerInfo.logoUrl);
+  if (logo) {
+    const image = doc.getImageProperties(logo);
+    const width = Math.min(66, 18 * image.width / image.height);
+    const height = width * image.height / image.width;
+    doc.addImage(logo, "PNG", margin, y, width, height);
+    y += height + 7;
+  } else {
+    doc.setFontSize(17);
+    const lines = doc.splitTextToSize(sellerInfo.nombreComercial || "KATSUMOTO", leftWidth);
+    doc.text(lines, margin, y + 5);
+    y += lines.length * 7 + 5;
   }
-
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  doc.text(`RUC: ${sellerInfo.ruc}`, textX, nextY);
-  nextY += 5;
-
-  const addrParts = [sellerInfo.direccion, sellerInfo.distrito, sellerInfo.provincia, sellerInfo.departamento].filter(Boolean);
-  if (addrParts.length > 0) {
-    doc.setFontSize(7);
-    doc.setTextColor(0, 0, 0);
-    doc.text(addrParts.join(", "), textX, nextY);
-    nextY += 3.5;
+  const fiscalAddress = [sellerInfo.direccion, sellerInfo.distrito, sellerInfo.provincia, sellerInfo.departamento].filter(Boolean).join(", ");
+  const details = [
+    sellerInfo.razonSocial,
+    fiscalAddress && `Domicilio fiscal: ${fiscalAddress}`,
+    [sellerInfo.phone && `Tel. ${sellerInfo.phone}`, sellerInfo.email].filter(Boolean).join(" | "),
+  ].filter(Boolean);
+  doc.setFontSize(8);
+  for (const detail of details) {
+    const lines = doc.splitTextToSize(detail, leftWidth);
+    doc.text(lines, margin, y, { lineHeightFactor: 1.45 });
+    y += lines.length * 4.1 + 1;
   }
-
-  if (sellerInfo.phone || sellerInfo.email) {
-    const parts: string[] = [];
-    if (sellerInfo.phone) parts.push(`Tel: ${sellerInfo.phone}`);
-    if (sellerInfo.email) parts.push(sellerInfo.email);
-    doc.setFontSize(7);
-    doc.setTextColor(0, 0, 0);
-    doc.text(parts.join(" · "), textX, nextY);
-    nextY += 3.5;
-  }
-
-  const typeInfo = INVOICE_TYPES[invoice.invoice_type];
-  const typeLabel = typeInfo?.label || invoice.invoice_type.toUpperCase();
-  doc.setFontSize(16);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  doc.text(typeLabel.toUpperCase(), rightX, y + 7, { align: "right" });
-
+  const boxX = right - 66;
+  doc.setFontSize(11);
+  const title = doc.splitTextToSize((INVOICE_TYPES[invoice.invoice_type]?.label || invoice.invoice_type).toUpperCase(), 58);
+  const boxHeight = 27 + title.length * 5;
+  doc.setLineWidth(0.5);
+  doc.rect(boxX, start, 66, boxHeight);
   doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  doc.text(`N° ${invoice.number}`, rightX, y + 14, { align: "right" });
-
+  doc.text(`RUC ${sellerInfo.ruc}`, boxX + 33, start + 7, { align: "center" });
+  doc.setFontSize(11);
+  doc.text(title, boxX + 33, start + 15, { align: "center", lineHeightFactor: 1.3 });
+  doc.setFontSize(14);
+  doc.text(invoice.number, boxX + 33, start + boxHeight - 6, { align: "center" });
+  y = Math.max(y, start + boxHeight + 5);
+  doc.setLineWidth(0.5);
+  doc.line(margin, y, right, y);
+  y += 7;
+  doc.setFontSize(9);
+  doc.text(`EMISION  ${issueDate(invoice.issue_date)}`, margin, y);
+  doc.text("MONEDA  SOLES (PEN)", right, y, { align: "right" });
+  y += 6;
   if (options.branchName) {
     doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Sede: ${options.branchName}`, rightX, y + 20, { align: "right" });
+    const lines = doc.splitTextToSize(`Sede: ${options.branchName}`, contentWidth);
+    doc.text(lines, margin, y);
+    y += lines.length * 4 + 2;
   }
-
-  const headerBottom = Math.max(nextY, y + 24);
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.5);
-  doc.line(margin, headerBottom + 2, rightX, headerBottom + 2);
-
-  const infoY = headerBottom + 6;
-  doc.setFontSize(8);
-  doc.setTextColor(0, 0, 0);
-  doc.setFont("helvetica", "bold");
-  doc.text("Fecha de Emisión:", margin, infoY);
-  doc.setTextColor(0, 0, 0);
-  doc.setFont("helvetica", "bold");
-  doc.text(formatDatePDF(invoice.issue_date), margin + 28, infoY);
-
-  doc.setTextColor(0, 0, 0);
-  doc.setFont("helvetica", "bold");
-  doc.text("Moneda:", margin + 85, infoY);
-  doc.setTextColor(0, 0, 0);
-  doc.setFont("helvetica", "bold");
-  doc.text("PEN (Soles)", margin + 105, infoY);
-
-  return infoY + 6;
+  if (sellerInfo.branchAddress) {
+    doc.setFontSize(8);
+    const lines = doc.splitTextToSize(`Direccion de sede: ${sellerInfo.branchAddress}`, contentWidth);
+    doc.text(lines, margin, y, { lineHeightFactor: 1.4 });
+    y += lines.length * 4 + 2;
+  }
+  return y + 3;
 }

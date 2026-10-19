@@ -1,6 +1,7 @@
 export const queryKeys = {
   products: {
     all: ["products"] as const,
+    barcodeConflicts: ["products", "barcode-conflicts"] as const,
     detail: (id: string) => ["products", id] as const,
     branchStock: (branchId: string) => ["products", "branch-stock", branchId] as const,
     tiers: (productId: string) => ["products", "tiers", productId] as const,

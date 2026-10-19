@@ -1,9 +1,26 @@
 import { supabase, getCurrentOrgId } from "@/lib/supabase";
-import { generateBarcode } from "@/lib/barcode";
 import { buildUpdatePayload } from "@/lib/utils";
+import type { BarcodeConflict } from "@/lib/product-labels";
 import type { Product, ProductFormData, PriceTier, ProductMachineModel } from "@/lib/types";
 
 export const productService = {
+  async barcodeConflicts(): Promise<BarcodeConflict[]> {
+    const { data, error } = await supabase.rpc("product_barcode_conflicts");
+    if (error) throw new Error(error.message);
+    return data as BarcodeConflict[];
+  },
+  async repairBarcode(product: Product, newBarcode: string | null): Promise<Product> {
+    const { data, error } = await supabase.rpc("repair_product_barcode", {
+      p_product_id: product.id, p_expected_barcode: product.barcode, p_new_barcode: newBarcode,
+    }).single();
+    if (error) throw new Error(error.message);
+    return data as Product;
+  },
+  async prepareLabels(productIds: string[]): Promise<Product[]> {
+    const { data, error } = await supabase.rpc("prepare_product_labels", { p_product_ids: productIds });
+    if (error) throw new Error(error.message);
+    return data as Product[];
+  },
   async getAll(): Promise<Product[]> {
     const orgId = await getCurrentOrgId();
     const { data, error } = await supabase
@@ -40,9 +57,6 @@ export const productService = {
     if (existingSku) {
       throw new Error(`Ya existe un producto con SKU "${formData.sku}": ${existingSku.name}`);
     }
-    const { count } = await supabase.from("products").select("*", { count: "exact", head: true }).eq("organization_id", organization_id);
-    const prodSeq = (count || 0) + 1;
-    const barcode = generateBarcode(prodSeq);
 
     const { data, error } = await supabase
       .from("products")
@@ -50,7 +64,6 @@ export const productService = {
         organization_id,
         name: formData.name,
         sku: formData.sku,
-        barcode,
         product_family: formData.product_family,
         category_group: formData.category_group,
         category: formData.category,
@@ -209,19 +222,15 @@ export const productService = {
       return true;
     });
 
-    const { count } = await supabase.from("products").select("*", { count: "exact", head: true }).eq("organization_id", organization_id);
-    let prodSeq = (count || 0) + 1;
 
     const batchSize = 50;
     for (let i = 0; i < validItems.length; i += batchSize) {
       const batch = validItems.slice(i, i + batchSize);
       const rows = batch.map((item) => {
-        const barcode = generateBarcode(prodSeq++);
         return {
           organization_id,
           name: item.name,
           sku: item.sku,
-          barcode,
           product_family: item.product_family,
           category_group: item.category_group,
           category: item.category,

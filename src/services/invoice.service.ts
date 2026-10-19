@@ -17,7 +17,7 @@ export const invoiceService = {
     const orgId = await getCurrentOrgId();
     const { data, error } = await supabase
       .from("invoices")
-      .select("*, customer:customers(id, name, document_number, document_type), items:invoice_items(count)")
+      .select("*, customer:customers(id, name, document_number, document_type), items:invoice_items(*)")
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -40,7 +40,7 @@ export const invoiceService = {
     const orgId = await getCurrentOrgId();
     const { data, error } = await supabase
       .from("invoices")
-      .select("*, customer:customers(id, name, document_number, document_type)")
+      .select("*, customer:customers(id, name, document_number, document_type), items:invoice_items(*)")
       .eq("organization_id", orgId)
       .eq("branch_id", branchId)
       .order("created_at", { ascending: false });
@@ -258,7 +258,7 @@ export const invoiceService = {
     const orgId = await getCurrentOrgId();
     const { data, error } = await supabase
       .from("invoices")
-      .select("*, customer:customers(id, name, document_number, document_type)")
+      .select("*, customer:customers(id, name, document_number, document_type), items:invoice_items(*)")
       .eq("organization_id", orgId)
       .eq("reference_invoice_id", invoiceId);
     if (error) throw error;
