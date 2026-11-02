@@ -1,6 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { computeDashboardSales, getDateKey } from "@/hooks/useDashboardSales";
 import type { Invoice } from "@/lib/types";
+
+vi.mock("@/hooks/useInvoices", () => ({ useInvoices: vi.fn() }));
 
 function inv(overrides: Partial<Invoice> & { issue_date: string }): Invoice {
   return {
