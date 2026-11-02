@@ -241,7 +241,7 @@ export default function CreateInvoice() {
       return;
     }
 
-    if (data.invoice_type === "boleta" && calc && calc.total_cents > 70000) {
+    if (data.invoiceType === "boleta" && calc && calc.total_cents > 70000) {
       if (!client.document_number || client.document_number === "00000000") {
         showError("Boletas mayores a S/ 700.00 deben identificar al cliente. Selecciona un cliente con DNI.");
         return;

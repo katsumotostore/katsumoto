@@ -1,4 +1,5 @@
 import type { Cents } from "./types";
+import { parseISO } from "date-fns";
 
 /** Convierte centavos a string formateado en PEN (Soles) */
 export function formatCents(cents: Cents): string {
@@ -22,7 +23,7 @@ export function toSoles(cents: Cents): number {
 
 /** Formatea fecha en formato peruano */
 export function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("es-PE", {
+  return parseISO(dateString).toLocaleDateString("es-PE", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -41,7 +42,7 @@ export function formatDateTime(dateString: string): string {
 }
 
 export function formatDateLong(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("es-PE", {
+  return parseISO(dateString).toLocaleDateString("es-PE", {
     year: "numeric",
     month: "long",
     day: "numeric",

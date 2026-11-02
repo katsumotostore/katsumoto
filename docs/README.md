@@ -23,6 +23,9 @@ Esta carpeta agrupa la documentación vigente del sistema, organizada por tipo. 
   - [01 — Módulos y reglas de negocio](funcional/01-modulos.md)
   - [02 — Modelo fiscal SUNAT](funcional/02-fiscal.md)
   - [03 — Tienda online](funcional/03-tienda.md)
+  - [04 — Importación de productos](funcional/04-importacion-productos.md)
+  - [05 — Reporte contable: revisión y pendientes](funcional/05-reporte-contable.md)
+  - [06 — Utilidad por producto](funcional/06-utilidad-productos.md)
 - **Técnica**
   - [01 — Arquitectura](tecnica/01-arquitectura.md)
   - [02 — Base de datos](tecnica/02-base-de-datos.md)

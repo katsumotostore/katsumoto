@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { format, parseISO } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { useBranches } from "@/hooks/useBranches";
 import { reportService } from "@/services/report.service";
@@ -15,8 +16,8 @@ function getDateRange(months: number = 1) {
     now.getDate() + 1
   );
   return {
-    dateFrom: from.toISOString().split("T")[0],
-    dateTo: to.toISOString().split("T")[0],
+    dateFrom: format(from, "yyyy-MM-dd"),
+    dateTo: format(to, "yyyy-MM-dd"),
   };
 }
 
@@ -155,7 +156,7 @@ export function useSalesReport() {
     >();
 
     for (const inv of filtered) {
-      const d = new Date(inv.issue_date);
+      const d = parseISO(inv.issue_date);
       let key: string;
       let label: string;
 
@@ -165,7 +166,7 @@ export function useSalesReport() {
       } else if (groupBy === "week") {
         const startOfWeek = new Date(d);
         startOfWeek.setDate(d.getDate() - d.getDay());
-        key = startOfWeek.toISOString().split("T")[0];
+        key = format(startOfWeek, "yyyy-MM-dd");
         label = `Sem ${key}`;
       } else {
         key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;

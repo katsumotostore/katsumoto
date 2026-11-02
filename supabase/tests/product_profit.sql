@@ -1,0 +1,51 @@
+BEGIN;
+DO $$
+DECLARE src public.invoices; fresh public.invoices; item public.invoice_items; note public.invoices; note_item public.invoice_items; actor uuid; result jsonb; captured bigint;
+BEGIN
+ SELECT * INTO src FROM public.invoices WHERE invoice_type IN ('factura','boleta') AND customer_id IS NOT NULL LIMIT 1;
+ SELECT it.* INTO item FROM public.invoice_items it JOIN public.products p ON p.id=it.product_id WHERE it.invoice_id=src.id LIMIT 1;
+ IF item.id IS NULL THEN RAISE EXCEPTION 'Se requiere comprobante con producto'; END IF;
+ SELECT id INTO actor FROM public.profiles WHERE organization_id=src.organization_id AND role='owner' AND is_active LIMIT 1;
+ PERFORM set_config('request.jwt.claim.sub',actor::text,true);
+ PERFORM public.confirm_profit_cost(item.product_id,1000,'PEN');
+ fresh:=jsonb_populate_record(src,jsonb_build_object('id',gen_random_uuid(),'number','QA-PROFIT-'||gen_random_uuid(),'serie','QP99','correlativo',987654321,'status','issued','issue_date','2026-11-02'));
+ INSERT INTO public.invoices SELECT (fresh).*;
+ item.id:=gen_random_uuid(); item.invoice_id:=fresh.id;
+ INSERT INTO public.invoice_items SELECT (item).*;
+ SELECT unit_cost_cents INTO captured FROM public.invoice_profit_costs WHERE item_id=item.id;
+ IF captured IS DISTINCT FROM 1000 THEN RAISE EXCEPTION 'No se capturó costo'; END IF;
+ PERFORM public.confirm_profit_cost(item.product_id,2500,'PEN');
+ IF (SELECT unit_cost_cents FROM public.invoice_profit_costs WHERE item_id=item.id)<>1000 THEN RAISE EXCEPTION 'Costo histórico cambió'; END IF;
+ result:=public.product_profit_report('2026-11-02','2026-11-02');
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(result->'lines') l WHERE l->>'id'=item.id::text AND l->>'quality'='historical') THEN RAISE EXCEPTION 'Filtro inclusivo o histórico incorrecto'; END IF;
+ note:=jsonb_populate_record(fresh,jsonb_build_object('id',gen_random_uuid(),'number','QA-NOTE-'||gen_random_uuid(),'serie','QC99','invoice_type','nota_credito','reference_invoice_id',fresh.id));
+ INSERT INTO public.invoices SELECT (note).*;
+ note_item:=item; note_item.id:=gen_random_uuid(); note_item.invoice_id:=note.id;
+ INSERT INTO public.invoice_items SELECT (note_item).*;
+ result:=public.product_profit_report('2026-11-02','2026-11-02');
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(result->'lines') l WHERE l->>'id'=note_item.id::text AND l->>'quality'='pending_adjustment' AND l->>'cost' IS NULL) THEN RAISE EXCEPTION 'Nota sin revisar calculó costo'; END IF;
+ PERFORM public.review_profit_note(note_item.id,item.id,'price');
+ result:=public.product_profit_report('2026-11-02','2026-11-02');
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(result->'lines') l WHERE l->>'id'=note_item.id::text AND (l->>'units')::numeric=0 AND (l->>'cost')::numeric=0) THEN RAISE EXCEPTION 'Descuento devuelve costo o unidades'; END IF;
+ PERFORM public.review_profit_note(note_item.id,item.id,'return');
+ result:=public.product_profit_report('2026-11-02','2026-11-02');
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(result->'lines') l WHERE l->>'id'=note_item.id::text AND (l->>'units')::numeric=-item.quantity AND (l->>'cost')::numeric=-1000*item.quantity) THEN RAISE EXCEPTION 'Devolución no conserva costo original'; END IF;
+ note_item.id:=gen_random_uuid();
+ INSERT INTO public.invoice_items SELECT (note_item).*;
+ BEGIN
+ PERFORM public.review_profit_note(note_item.id,item.id,'return');
+ RAISE EXCEPTION 'Devolución excedida permitida';
+ EXCEPTION WHEN OTHERS THEN IF SQLERRM='Devolución excedida permitida' THEN RAISE; END IF;
+ END;
+ UPDATE public.invoices SET status='cancelled' WHERE id=fresh.id;
+ result:=public.product_profit_report('2026-11-02','2026-11-02');
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(result->'lines') l WHERE l->>'invoice_id'=note.id::text AND l->>'quality'<>'pending_adjustment') THEN RAISE EXCEPTION 'Original anulado restado dos veces'; END IF;
+ PERFORM set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);
+ BEGIN
+ PERFORM public.product_profit_report('2026-11-02','2026-11-02');
+ RAISE EXCEPTION 'Acceso indebido';
+ EXCEPTION WHEN OTHERS THEN IF SQLERRM='Acceso indebido' THEN RAISE; END IF;
+ END;
+ RAISE NOTICE 'PASS: costo histórico, filtro inclusivo, notas, devoluciones, anulaciones y autorización';
+END $$;
+ROLLBACK;

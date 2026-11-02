@@ -16,6 +16,7 @@ import { InvoiceDetail } from "@/components/invoices/InvoiceDetail";
 import { CreateCreditNote } from "@/components/invoices/CreateCreditNote";
 import { CreateDebitNote } from "@/components/invoices/CreateDebitNote";
 import { SalesReportDialog } from "@/components/invoices/SalesReportDialog";
+import { AccountingReportDialog } from "@/components/invoices/AccountingReportDialog";
 import { invoiceService } from "@/services/invoice.service";
 import { exportInvoicesCSV } from "@/lib/export";
 import { showSuccess } from "@/utils/toast";
@@ -31,6 +32,7 @@ export default function Invoices() {
   const [ncInvoice, setNcInvoice] = useState<Invoice | null>(null);
   const [ndInvoice, setNdInvoice] = useState<Invoice | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [accountingOpen, setAccountingOpen] = useState(false);
 
   const handleExportCSV = () => {
     exportInvoicesCSV(filtered, { getBranchName });
@@ -101,7 +103,8 @@ export default function Invoices() {
           <h1 className="text-2xl md:text-3xl font-bold">Comprobantes de Pago</h1>
           <HelpHint {...HELP_TEXTS.invoices} />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setAccountingOpen(true)} className="rounded-xl">Reporte contable</Button>
           <Button variant="outline" onClick={() => setReportOpen(true)} className="rounded-xl">
             <BarChart3 className="w-4 h-4 mr-2" />Reporte Ventas
           </Button>
@@ -150,6 +153,7 @@ export default function Invoices() {
       </>
       )}
 
+      <AccountingReportDialog open={accountingOpen} onOpenChange={setAccountingOpen} />
       <InvoiceDetail
         invoice={viewInvoice}
         open={!!viewInvoice}

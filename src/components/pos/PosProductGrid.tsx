@@ -43,8 +43,8 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
   const { data: managedFamilies = [] } = useQuery({
     queryKey: ["managed-families"],
     queryFn: async () => {
-      const { data } = await supabase.from("managed_category_families").select("key,label").order("label");
-      return (data || []) as { key: string; label: string }[];
+      const { data } = await supabase.from("managed_category_families").select("id,key,label").order("label");
+      return (data || []) as { id: string; key: string; label: string }[];
     },
     staleTime: 30 * 60 * 1000,
   });
