@@ -11,7 +11,7 @@ import { useProductMutations } from "@/hooks/useProductMutations";
 import { useTaxConfig } from "@/lib/tax-config-context";
 import { PaginationControls } from "@/components/data-table/PaginationControls";
 import { toSoles } from "@/lib/format";
-import { exportInventoryCSV } from "@/lib/export";
+import { exportInventoryExcel } from "@/lib/export";
 import { ProductDetailDialog } from "@/components/inventory/ProductDetailDialog";
 import { CategoryImageManager } from "@/components/CategoryImageManager";
 import { CategoryManager } from "@/components/inventory/CategoryManager";
@@ -64,7 +64,7 @@ import {
   Barcode,
 } from "lucide-react";
 import { CSVImportDialog } from "@/components/inventory/CSVImportDialog";
-import { showSuccess } from "@/utils/toast";
+import { showSuccess, showError } from "@/utils/toast";
 
 const productFormDefaults: ProductFormValues = {
   name: "",
@@ -105,6 +105,7 @@ export default function Inventory() {
   } = useBranches();
   const { saveProductAsync, deleteProduct, adjustStock, nextSku, resolveAdjustBranch, isSaving } = useProductMutations();
   const [activeTab, setActiveTab] = useState("products");
+  const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
   const [familyFilter, setFamilyFilter] = useState("all");
@@ -271,10 +272,18 @@ export default function Inventory() {
       .map((pm) => machineModels.find((m) => m.id === pm.machine_model_id))
       .filter(Boolean) as MachineModel[];
 
-  const handleExportCSV = () => {
-    const activeBranches = branches.filter((b) => b.is_active);
-    exportInventoryCSV(sorted, { getMachinesForProduct, branches: activeBranches, branchStocks });
-    showSuccess("Exportados " + sorted.length + " productos a CSV");
+  const handleExportExcel = async () => {
+    if (exporting || sorted.length === 0) return;
+    setExporting(true);
+    try {
+      const activeBranches = branches.filter((b) => b.is_active);
+      await exportInventoryExcel(sorted, { getMachinesForProduct, branches: activeBranches, branchStocks });
+      showSuccess("Exportados " + sorted.length + " productos a Excel");
+    } catch {
+      showError("No se pudo generar el Excel. Intenta nuevamente.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const openDetail = (product: Product) => { setDetailProduct(product); setDetailOpen(true); };
@@ -376,8 +385,8 @@ export default function Inventory() {
               <Button variant="outline" onClick={() => setCategoryImageOpen(true)} className="rounded-xl">
                 <ImageIcon className="w-4 h-4 mr-2" />Imágenes
               </Button>
-              <Button variant="outline" onClick={handleExportCSV} disabled={sorted.length === 0} className="rounded-xl">
-                <Download className="w-4 h-4 mr-2" />CSV
+              <Button variant="outline" onClick={handleExportExcel} disabled={exporting || sorted.length === 0} className="rounded-xl">
+                <Download className="w-4 h-4 mr-2" />{exporting ? "Generando…" : "Excel"}
               </Button>
               <Button variant="outline" onClick={() => setImportOpen(true)} disabled={branches.length === 0} className="rounded-xl">
                 <Upload className="w-4 h-4 mr-2" />Importar

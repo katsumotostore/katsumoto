@@ -37,7 +37,7 @@ function buildCSV(headers: string[], rows: string[][]): string {
 }
 
 // ==========================================
-// Export Inventory to CSV
+// Export Inventory to Excel
 // ==========================================
 export interface InventoryExportOptions {
   getMachinesForProduct: (id: string) => { name: string; brand: string; model: string }[];
@@ -45,10 +45,11 @@ export interface InventoryExportOptions {
   branchStocks: BranchStock[];
 }
 
-export function exportInventoryCSV(
+export async function exportInventoryExcel(
   products: Product[],
   options: InventoryExportOptions
 ) {
+  const XLSX = await import("xlsx");
   const { getMachinesForProduct, branches, branchStocks } = options;
 
   const branchHeaders = branches.map((b) => `Stock ${b.name}`);
@@ -76,8 +77,8 @@ export function exportInventoryCSV(
   const rows = products.map((p) => {
     const margin =
       p.cost_cents > 0 && p.price_cents > 0
-        ? ((1 - p.cost_cents / p.price_cents) * 100).toFixed(1)
-        : "—";
+        ? (1 - p.cost_cents / p.price_cents)
+        : null;
 
     const stockStatus =
       p.stock === 0
@@ -95,32 +96,42 @@ export function exportInventoryCSV(
         : "—";
 
     return [
-      csvEscape(p.sku),
-      csvEscape(p.barcode),
-      csvEscape(p.name),
-      csvEscape(p.category),
-      csvEscape(p.description),
-      csvEscape(p.unit),
-      csvEscape(formatCents(p.price_cents)),
-      csvEscape(formatCents(p.cost_cents ?? 0)),
-      csvEscape(margin),
-      csvEscape(p.stock),
+      p.sku,
+      p.barcode,
+      p.name,
+      p.category,
+      p.description,
+      p.unit,
+      p.price_cents / 100,
+      (p.cost_cents ?? 0) / 100,
+      margin,
+      p.stock,
       ...branches.map((b) => {
         const bs = branchStocks.find((s) => s.branch_id === b.id && s.product_id === p.id);
-        return csvEscape(bs?.stock ?? 0);
+        return bs?.stock ?? 0;
       }),
-      csvEscape(p.min_stock),
-      csvEscape(p.max_stock),
-      csvEscape(stockStatus),
-      csvEscape(p.tax_affectation || "gravado"),
-      csvEscape(p.supplier),
-      csvEscape(machinesStr),
+      p.min_stock,
+      p.max_stock,
+      stockStatus,
+      p.tax_affectation || "gravado",
+      p.supplier,
+      machinesStr,
     ];
   });
 
-  const csv = buildCSV(headers, rows);
-  const timestamp = new Date().toISOString().split("T")[0];
-  downloadCSV(csv, `inventario_${timestamp}.csv`);
+  const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  sheet["!cols"] = headers.map((header) => ({ wch: header === "Nombre" || header === "Descripción" || header === "Máquinas Compatibles" ? 45 : 22 }));
+  sheet["!autofilter"] = { ref: sheet["!ref"]! };
+  for (let row = 1; row <= rows.length; row++) {
+    for (const col of [6, 7, 8]) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
+      if (cell?.t === "n") cell.z = col === 8 ? "0.0%" : '#,##0.00';
+    }
+  }
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, sheet, "Inventario");
+  const timestamp = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
+  XLSX.writeFile(book, `inventario_${timestamp}.xlsx`, { compression: true });
 }
 
 // ==========================================

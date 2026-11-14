@@ -1,3 +1,4 @@
+import { ServicePriceEditor } from "./ServicePriceEditor";
 import { useRef, useMemo, memo } from "react";
 import type { Product, InvoiceType, Customer, Cents } from "@/lib/types";
 import type { InvoiceCalculation } from "@/lib/calculations";
@@ -13,6 +14,7 @@ export interface CartItem {
   product: Product;
   quantity: number;
   effectivePriceCents: Cents;
+  manualPriceCents?: Cents;
   appliedTierLabel?: string;
   isTierPrice?: boolean;
   savingsCents?: Cents;
@@ -25,6 +27,7 @@ interface PosCartProps {
   clientId: string;
   clients: Customer[];
   onUpdateQty: (productId: string, delta: number) => void;
+  onUpdateServicePrice: (productId: string, price: Cents | null) => void;
   onRemove: (productId: string) => void;
   onClear: () => void;
   onCobrar: () => void;
@@ -41,6 +44,7 @@ export const PosCart = memo(function PosCart({
   clientId,
   clients,
   onUpdateQty,
+  onUpdateServicePrice,
   onRemove,
   onClear,
   onCobrar,
@@ -246,6 +250,11 @@ export const PosCart = memo(function PosCart({
                     </div>
                   </div>
                 </div>
+                {item.product.product_family === "servicios" && (
+                  <div className="ml-[50px]">
+                    <ServicePriceEditor item={item} disabled={!canSell} onChange={onUpdateServicePrice} />
+                  </div>
+                )}
                 <div className="flex items-center justify-between mt-2 ml-[50px]">
                   <div className="flex items-center gap-1">
                     <button

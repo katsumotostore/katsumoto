@@ -3,9 +3,9 @@ import { useProducts } from "@/hooks/useProducts";
 import { useBranches } from "@/hooks/useBranches";
 import { useTaxConfig } from "@/lib/tax-config-context";
 import { calculateInvoice } from "@/lib/calculations";
-import { getEffectivePriceInfo } from "@/lib/pricing";
+import { getPosPriceFields } from "@/lib/pos-pricing";
 import { determineTaxForTransaction, determineProductTax } from "@/lib/tax-engine";
-import type { Product, TaxAffectation, Customer } from "@/lib/types";
+import type { Product, TaxAffectation, Customer, Cents } from "@/lib/types";
 import type { CartItem } from "@/components/pos/PosCart";
 import type { BranchLocation, CustomerLocation } from "@/lib/tax-engine";
 import { showError } from "@/utils/toast";
@@ -22,15 +22,8 @@ export function usePosCart(selectedCustomer?: Customer | null) {
   );
 
   const computeCartFields = useCallback(
-    (product: Product, quantity: number) => {
-      const info = getEffectivePriceInfo(product, priceTiers, quantity);
-      return {
-        effectivePriceCents: info.priceCents,
-        appliedTierLabel: info.tierLabel,
-        isTierPrice: !info.isRetail,
-        savingsCents: info.savingsCents,
-      };
-    },
+    (product: Product, quantity: number, manualPriceCents?: Cents) =>
+      getPosPriceFields(product, priceTiers, quantity, manualPriceCents),
     [priceTiers]
   );
 
@@ -49,7 +42,7 @@ export function usePosCart(selectedCustomer?: Customer | null) {
             stockExceeded = true;
             return prev;
           }
-          const fields = computeCartFields(product, newQty);
+          const fields = computeCartFields(product, newQty, existing.manualPriceCents);
           return prev.map((i) =>
             i.product.id === product.id ? { ...i, quantity: newQty, ...fields } : i
           );
@@ -79,7 +72,7 @@ export function usePosCart(selectedCustomer?: Customer | null) {
             }
             return item;
           }
-          const fields = computeCartFields(item.product, newQty);
+          const fields = computeCartFields(item.product, newQty, item.manualPriceCents);
           return { ...item, quantity: newQty, ...fields };
         })
       );
@@ -89,6 +82,15 @@ export function usePosCart(selectedCustomer?: Customer | null) {
     },
     [computeCartFields]
   );
+
+  const updateServicePrice = useCallback((productId: string, price: Cents | null) => {
+    if (price !== null && (!Number.isSafeInteger(price) || price <= 0 || price > 2147483647)) return;
+    setCart((prev) => prev.map((item) =>
+      item.product.id === productId && item.product.product_family === "servicios"
+        ? { ...item, ...computeCartFields(item.product, item.quantity, price ?? undefined) }
+        : item
+    ));
+  }, [computeCartFields]);
 
   const removeFromCart = useCallback(
     (productId: string) => setCart((prev) => prev.filter((i) => i.product.id !== productId)),
@@ -174,6 +176,7 @@ export function usePosCart(selectedCustomer?: Customer | null) {
     priceTiers,
     addToCart,
     updateQty,
+    updateServicePrice,
     removeFromCart,
     clearCart,
     calc,

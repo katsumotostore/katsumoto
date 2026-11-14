@@ -31,7 +31,7 @@ export default function POS() {
   }, [branches, selectedBranchId, setSelectedBranchId]);
 
   const {
-    cart, setCart: _setCart, branchProducts, priceTiers, addToCart, updateQty, removeFromCart,
+    cart, setCart: _setCart, branchProducts, priceTiers, addToCart, updateQty, updateServicePrice, removeFromCart,
     clearCart: clearCartItems, calc, isLoading: cartLoading, error: cartError,
   } = usePosCart(selectedCustomer);
 
@@ -183,7 +183,7 @@ export default function POS() {
 
           <div className="hidden lg:flex lg:col-span-3 overflow-hidden border-l border-border">
             <PosCart cart={cart} calc={calc} invoiceType={invoiceType} clientId={clientId}
-              clients={clients} onUpdateQty={updateQty} onRemove={removeFromCart} onClear={clearCart}
+              clients={clients} onUpdateQty={updateQty} onUpdateServicePrice={updateServicePrice} onRemove={removeFromCart} onClear={clearCart}
               onCobrar={handleCobrar} onChangeType={handleInvoiceTypeChange} onChangeClient={setClientId}
               onCreateClient={handleLookupClient} canSell={canSell} />
           </div>
@@ -195,7 +195,7 @@ export default function POS() {
           {mobileCartOpen && (
             <div className="max-h-[70vh] overflow-auto border-t border-slate-800 bg-slate-950 rounded-t-2xl">
               <PosCart cart={cart} calc={calc} invoiceType={invoiceType} clientId={clientId}
-                clients={clients} onUpdateQty={updateQty} onRemove={removeFromCart} onClear={clearCart}
+                clients={clients} onUpdateQty={updateQty} onUpdateServicePrice={updateServicePrice} onRemove={removeFromCart} onClear={clearCart}
                 onCobrar={handleCobrar} onChangeType={handleInvoiceTypeChange} onChangeClient={setClientId}
                 onCreateClient={handleLookupClient} canSell={canSell} />
             </div>

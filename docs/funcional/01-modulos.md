@@ -35,6 +35,7 @@ Los roles son **por organización** (multi-tenant por `organization_id`). El rol
 - Boleta mayor a **S/ 700.00** debe identificar al cliente (no puede usar DNI 00000000) — validación SUNAT.
 - Factura exige cliente con RUC (módulo 11).
 - El precio unitario se aplica con **escalas por cantidad** (price_tiers).
+- En el carrito del POS, los artículos de familia **Servicios** permiten **Editar precio** antes de cobrar. Se acepta un precio unitario final mayor a cero con hasta dos decimales; se recalculan los totales e impuestos. El precio personalizado se conserva al cambiar la cantidad o agregar de nuevo el mismo servicio, y se guarda en los ítems de la boleta/factura sin modificar el catálogo. **Restaurar precio** vuelve a la tarifa automática vigente para la cantidad del carrito. Disponible en escritorio y móvil para quien puede operar la caja.
 - El efectivo recibido/vuelto se registra al cobrar y se imprime en el ticket.
 
 ---
