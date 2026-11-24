@@ -96,10 +96,11 @@ export function prepareProductTemplate(bytes: Uint8Array, catalogs: {familia:str
     const style=source.match(new RegExp(`<c r="${ref}"[^>]*? s="(\\d+)"`))?.[1];
     return `<c r="${ref}"${style?` s="${style}"`:''} t="inlineStr"><is><t xml:space="preserve">${xml(value)}</t></is></c>`;
   };
-  const rows=[['Familia','Grupo','Categoria','Origen','','Categorias disponibles'],...catalogs.map(c=>[c.familia,c.grupo,c.categoria,'Catálogo del backend actual','',c.categoria])];
+  const groups=[...new Set(catalogs.map(c=>c.grupo))];
+  const rows=[['Familia','Grupo','Categoria','Origen','','Categorias disponibles','','Grupos disponibles'],...catalogs.map((c,i)=>[c.familia,c.grupo,c.categoria,'Catálogo del backend actual','',c.categoria,'',groups[i]||''])];
   const data=rows.map((row,i)=>`<row r="${i+1}"${i===0?' ht="42" customHeight="1"':''}>${row.map((v,j)=>cell(sheet,`${String.fromCharCode(65+j)}${i+1}`,v)).join('')}</row>`).join('');
-  zip[sheetPath]=strToU8(sheet.replace(/<sheetData[\s\S]*?<\/sheetData>/,`<sheetData>${data}</sheetData>`).replace(/<dimension[^>]*\/>/,`<dimension ref="A1:F${rows.length}"/>`));
-  const products=strFromU8(zip['xl/worksheets/sheet1.xml']);
+  zip[sheetPath]=strToU8(sheet.replace(/<sheetData[\s\S]*?<\/sheetData>/,`<sheetData>${data}</sheetData>`).replace(/<dimension[^>]*\/>/,`<dimension ref="A1:H${rows.length}"/>`));
+  const products=readXml('xl/worksheets/sheet1.xml').replace(/(<dataValidation\b[^>]*sqref="D2:D201"[^>]*>[\s\S]*?<formula1>)[\s\S]*?(<\/formula1>)/,`$1Catalogos!$H$2:$H$${groups.length+1}$2`);
   zip['xl/worksheets/sheet1.xml']=strToU8(products.replace(/Catalogos!\$F\$2:\$F\$\d+/g,`Catalogos!$F$2:$F$${rows.length}`));
   const guide=XLSX.read(bytes,{type:'array'}).Sheets.Guia;
   const guideRows=XLSX.utils.sheet_to_json<string[]>(guide,{header:1});

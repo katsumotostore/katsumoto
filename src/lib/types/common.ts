@@ -8,7 +8,7 @@ export type TaxAffectation = "gravado" | "exonerado" | "inafecto" | "exportacion
 
 // ---------- Hierarchical Categories ----------
 export type ProductFamily = "productos" | "servicios";
-export type CategoryGroup = "herramientas" | "repuestos" | "maquinas" | "transporte" | "maintenance";
+export type CategoryGroup = string;
 
 // ---------- Organization ----------
 export interface Organization {

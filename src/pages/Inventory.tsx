@@ -72,6 +72,7 @@ const productFormDefaults: ProductFormValues = {
   product_family: "productos",
   category_group: "repuestos",
   category: "",
+  category_id: null,
   description: "",
   price_soles: 0,
   cost_soles: 0,
@@ -181,7 +182,7 @@ export default function Inventory() {
       const matchSearch = p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcode.includes(q);
       const matchFamily = familyFilter === "all" || p.product_family === familyFilter;
       const matchGroup = groupFilter === "all" || p.category_group === groupFilter;
-      const matchCategory = categoryFilter === "all" || p.category === categoryFilter;
+      const matchCategory = categoryFilter === "all" || (categoryFilter === "unlinked" ? !p.category_id : p.category_id === categoryFilter);
       const matchMachine = !machineCompatibleIds || machineCompatibleIds.has(p.id);
       const matchTax = taxFilter === "all" || p.tax_affectation === taxFilter;
       const matchTag = tagFilter === "all" || (p.tags && p.tags.includes(tagFilter));
@@ -303,7 +304,7 @@ export default function Inventory() {
     setEditingProduct(product);
     productForm.reset({
       name: product.name, sku: product.sku, product_family: product.product_family,
-      category_group: product.category_group, category: product.category,
+      category_group: product.category_group, category: product.category, category_id: product.category_id ?? null,
       description: product.description || "", price_soles: toSoles(product.price_cents),
       cost_soles: toSoles(product.cost_cents), stock: product.stock, min_stock: product.min_stock,
       max_stock: product.max_stock, unit: product.unit, supplier: product.supplier || "",

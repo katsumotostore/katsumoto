@@ -5,8 +5,8 @@ import { formatCents } from "@/lib/format";
 import { getLowestTierInfo } from "@/lib/pricing";
 import { TAX_AFFECTATION_TYPES } from "@/lib/constants";
 import { ProductImage } from "@/components/ProductImage";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { useManagedCatalog } from "@/hooks/useManagedCatalog";
+
 import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -40,27 +40,11 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
   const [page, setPage] = useState(1);
   const [justAdded, setJustAdded] = useState<string | null>(null);
 
-  const { data: managedFamilies = [] } = useQuery({
-    queryKey: ["managed-families"],
-    queryFn: async () => {
-      const { data } = await supabase.from("managed_category_families").select("id,key,label").order("label");
-      return (data || []) as { id: string; key: string; label: string }[];
-    },
-    staleTime: 30 * 60 * 1000,
-  });
-
-  const { data: managedGroups = [] } = useQuery({
-    queryKey: ["managed-groups"],
-    queryFn: async () => {
-      const { data } = await supabase.from("managed_category_groups").select("key,label,family_id").order("label");
-      return (data || []) as { key: string; label: string; family_id: string }[];
-    },
-    staleTime: 30 * 60 * 1000,
-  });
+  const { catalog: { families: managedFamilies, groups: managedGroups } } = useManagedCatalog();
 
   const families = useMemo(() => {
     return managedFamilies.map((fam) => {
-      const count = products.filter((p) => p.category === fam.label || p.category === fam.key).length;
+      const count = products.filter((p) => p.product_family === fam.key).length;
       return { ...fam, count };
     }).filter((fam) => fam.count > 0);
   }, [managedFamilies, products]);
@@ -71,9 +55,9 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
       : null;
 
     return managedGroups
-      .filter((g) => !familyId || g.family_id === familyId.key || g.family_id === familyId.id)
+      .filter((g) => !familyId || g.familyId === familyId.id)
       .map((g) => {
-        const count = products.filter((p) => p.category_group === g.label || p.category_group === g.key).length;
+        const count = products.filter((p) => p.category_group === g.key).length;
         return { ...g, count };
       });
   }, [managedGroups, familyFilter, managedFamilies, products]);
@@ -95,9 +79,9 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
       if (familyFilter !== "all") {
         const fam = managedFamilies.find(f => f.key === familyFilter);
         if (fam) {
-          matchFamily = p.category === fam.label || p.category === fam.key;
+          matchFamily = p.product_family === fam.key;
         } else {
-          matchFamily = p.category === familyFilter;
+          matchFamily = p.product_family === familyFilter;
         }
       }
 
@@ -105,7 +89,7 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
       if (groupFilter !== "all") {
         const grp = managedGroups.find(g => g.key === groupFilter);
         if (grp) {
-          matchGroup = p.category_group === grp.label || p.category_group === grp.key;
+          matchGroup = p.category_group === grp.key;
         } else {
           matchGroup = p.category_group === groupFilter;
         }

@@ -10,6 +10,7 @@ export interface Product {
   product_family: ProductFamily;
   category_group: CategoryGroup;
   category: string;
+  category_id?: string | null;
   description: string | null;
   unit: string;
   price_cents: Cents;
@@ -32,6 +33,7 @@ export interface ProductFormData {
   product_family: ProductFamily;
   category_group: CategoryGroup;
   category: string;
+  category_id?: string | null;
   description?: string;
   unit: string;
   price_cents: Cents;
@@ -63,6 +65,7 @@ export interface ProductMachineModel {
 
 // ---------- Dynamic Category Management ----------
 export interface ManagedCategoryFamily {
+  isActive?: boolean;
   id: string;
   key: string;
   label: string;
@@ -73,6 +76,7 @@ export interface ManagedCategoryFamily {
 }
 
 export interface ManagedCategoryGroup {
+  isActive?: boolean;
   id: string;
   familyId: string;
   key: string;
@@ -83,6 +87,7 @@ export interface ManagedCategoryGroup {
 }
 
 export interface ManagedCategory {
+  isActive?: boolean;
   id: string;
   groupId: string;
   name: string;

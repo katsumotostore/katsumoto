@@ -1,858 +1,99 @@
-import { useState, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useManagedCatalog } from "@/hooks/useManagedCatalog";
+import { useAuth } from "@/lib/auth-context";
+import { getCurrentOrgId } from "@/lib/supabase";
 import { categoryService } from "@/services/category.service";
-import { ImageUpload } from "@/components/ImageUpload";
+import { productService } from "@/services/product.service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  ChevronRight,
-  ChevronDown,
-  Package,
-  Briefcase,
-  FolderTree,
-  FolderOpen,
-  Folder,
-  Tag,
-  Image as ImageIcon,
-  Layers,
-  Settings2,
-  type LucideIcon,
-} from "lucide-react";
-import { showSuccess } from "@/utils/toast";
-import type {
-  ManagedCategoryFamily,
-  ManagedCategoryGroup,
-  ManagedCategory,
-} from "@/lib/types";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ImageUpload } from "@/components/ImageUpload";
+import { showError, showSuccess } from "@/utils/toast";
+import { Plus, Pencil, Archive, ArrowRightLeft, FolderTree } from "lucide-react";
 
-type NodeType = "family" | "group" | "category";
-
+type Edit = { kind: "group" | "category"; id?: string; parent: string };
+type Action = { kind: "archive" | "reassign" | "link"; id: string; name: string; node: "category" | "group"; family: string; count: number; active?: boolean };
+const selectClass = "w-full rounded-lg border bg-background p-2 text-sm";
 export function CategoryManager() {
-  const queryClient = useQueryClient();
-
-  const { data: categoryData } = useQuery({
-    queryKey: ["categories", "all"],
-    queryFn: () => categoryService.getAllGrouped(),
-  });
-
-  const managedFamilies = useMemo(() => categoryData?.families ?? [], [categoryData]);
-  const managedGroups = useMemo(() => categoryData?.groups ?? [], [categoryData]);
-  const managedCategories = useMemo(() => categoryData?.categories ?? [], [categoryData]);
-  const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(
-    new Set()
-  );
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    new Set()
-  );
-
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState<"add" | "edit">("add");
-  const [dialogNodeType, setDialogNodeType] = useState<NodeType>("family");
-  const [dialogParentId, setDialogParentId] = useState("");
-  const [editingId, setEditingId] = useState("");
-
-  const [formLabel, setFormLabel] = useState("");
-  const [formIcon, setFormIcon] = useState("Package");
-  const [formColor, setFormColor] = useState(
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-  );
-  const [formActiveColor, setFormActiveColor] = useState(
-    "bg-emerald-600 text-white"
-  );
-  const [formImageUrl, setFormImageUrl] = useState<string | null>(null);
-
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{
-    id: string;
-    type: NodeType;
-    name: string;
-  } | null>(null);
-
-  const toggleFamily = (id: string) => {
-    setExpandedFamilies((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleGroup = (id: string) => {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const stats = useMemo(() => {
-    const families = managedFamilies.length;
-    const groups = managedGroups.length;
-    const categories = managedCategories.length;
-    const withImages = managedCategories.filter((c) => c.imageUrl).length;
-    return { families, groups, categories, withImages };
-  }, [
-    managedFamilies,
-    managedGroups,
-    managedCategories,
-  ]);
-
-  const openAddDialog = (type: NodeType, parentId: string) => {
-    setDialogMode("add");
-    setDialogNodeType(type);
-    setDialogParentId(parentId);
-    setEditingId("");
-    setFormLabel("");
-    setFormIcon(
-      type === "family" ? "Package" : type === "group" ? "Folder" : "Tag"
-    );
-    setFormColor(
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-    );
-    setFormActiveColor("bg-emerald-600 text-white");
-    setFormImageUrl(null);
-    setDialogOpen(true);
-  };
-
-  const openEditDialog = (
-    type: NodeType,
-    item: ManagedCategoryFamily | ManagedCategoryGroup | ManagedCategory
-  ) => {
-    setDialogMode("edit");
-    setDialogNodeType(type);
-    setEditingId(item.id);
-    if (type === "family") {
-      const f = item as ManagedCategoryFamily;
-      setFormLabel(f.label);
-      setFormIcon(f.icon);
-      setFormColor(f.color);
-      setFormActiveColor(f.activeColor);
-    } else if (type === "group") {
-      const g = item as ManagedCategoryGroup;
-      setFormLabel(g.label);
-      setFormIcon(g.icon);
-      setFormColor(g.color);
-      setDialogParentId(g.familyId);
-    } else {
-      const c = item as ManagedCategory;
-      setFormLabel(c.name);
-      setFormImageUrl(c.imageUrl);
-      setDialogParentId(c.groupId);
-    }
-    setDialogOpen(true);
-  };
-
-  const invalidateCategories = () => {
-    queryClient.invalidateQueries({ queryKey: ["categories", "all"] });
-  };
-
-  const handleSave = async () => {
-    if (!formLabel.trim()) return;
-
-    if (dialogMode === "add") {
-      if (dialogNodeType === "family") {
-        const maxOrder = managedFamilies.reduce(
-          (max, f) => Math.max(max, f.order),
-          -1
-        );
-        const key = formLabel
-          .toLowerCase()
-          .replace(/\s+/g, "_")
-          .replace(/[^a-z_]/g, "");
-        await categoryService.createFamily({
-          key,
-          label: formLabel.trim(),
-          icon: formIcon,
-          color: formColor,
-          activeColor: formActiveColor,
-          sortOrder: maxOrder + 1,
-        });
-      } else if (dialogNodeType === "group") {
-        const maxOrder = managedGroups
-          .filter((g) => g.familyId === dialogParentId)
-          .reduce((max, g) => Math.max(max, g.order), -1);
-        const key = formLabel
-          .toLowerCase()
-          .replace(/\s+/g, "_")
-          .replace(/[^a-z_]/g, "");
-        await categoryService.createGroup({
-          familyId: dialogParentId,
-          key,
-          label: formLabel.trim(),
-          icon: formIcon,
-          color: formColor,
-          sortOrder: maxOrder + 1,
-        });
+  const { all, catalog, isLoading, error, refresh } = useManagedCatalog();
+  const { user } = useAuth();
+  const canManage = !!user && ["owner","admin","inventory"].includes(user.role);
+  const { data: assignments = [], error: assignmentsError } = useQuery({ queryKey: ["catalog-assignments",getCurrentOrgId()], queryFn: () => categoryService.productAssignments(), enabled: canManage });
+  const [search,setSearch] = useState("");
+  const [showArchived,setShowArchived] = useState(false);
+  const [edit,setEdit] = useState<Edit | null>(null);
+  const [name,setName] = useState("");
+  const [image,setImage] = useState<string | null>(null);
+  const [busy,setBusy] = useState(false);
+  const [action,setAction] = useState<Action | null>(null);
+  const [target,setTarget] = useState("");
+  const count = (id: string) => assignments.filter(p => p.category_id === id).length;
+  const familyForGroup = (id: string) => all.families.find(f => f.id === all.groups.find(g => g.id === id)?.familyId)?.key ?? "";
+  const pending = assignments.filter(p => !p.category_id);
+  const openEdit = (value: Edit, label = "", url: string | null = null) => { setEdit(value); setName(label); setImage(url); };
+  const openAction = (value: Action) => { setAction(value); setTarget(""); };
+  const save = async () => {
+    if (!edit || !name.trim() || busy) return;
+    setBusy(true);
+    try {
+      if (edit.kind === "group") {
+        if (edit.id) await categoryService.updateGroup(edit.id,{label:name.trim()});
+        else await categoryService.createGroup({familyId:edit.parent,key:`g_${crypto.randomUUID().replaceAll("-","")}`,label:name.trim()});
       } else {
-        const maxOrder = managedCategories
-          .filter((c) => c.groupId === dialogParentId)
-          .reduce((max, c) => Math.max(max, c.order), -1);
-        await categoryService.createCategory({
-          groupId: dialogParentId,
-          name: formLabel.trim(),
-          imageUrl: formImageUrl || undefined,
-          sortOrder: maxOrder + 1,
-        });
+        if (edit.id) await categoryService.updateCategory(edit.id,{name:name.trim(),imageUrl:image});
+        else await categoryService.createCategory({groupId:edit.parent,name:name.trim(),imageUrl:image ?? undefined});
       }
-      showSuccess(
-        (dialogNodeType === "family"
-          ? "Familia"
-          : dialogNodeType === "group"
-          ? "Grupo"
-          : "Categoría") + " creada"
-      );
-    } else {
-      if (dialogNodeType === "family") {
-        await categoryService.updateFamily(editingId, {
-          label: formLabel.trim(),
-          icon: formIcon,
-          color: formColor,
-          activeColor: formActiveColor,
-        });
-      } else if (dialogNodeType === "group") {
-        await categoryService.updateGroup(editingId, {
-          label: formLabel.trim(),
-          icon: formIcon,
-          color: formColor,
-        });
-      } else {
-        await categoryService.updateCategory(editingId, {
-          name: formLabel.trim(),
-          imageUrl: formImageUrl,
-        });
-      }
-      showSuccess("Cambios guardados");
-    }
-    invalidateCategories();
-    setDialogOpen(false);
+      await refresh();setEdit(null);showSuccess("Catálogo actualizado");
+    } catch(e) { showError((e as Error).message); } finally {setBusy(false);}
   };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    if (deleteTarget.type === "family") {
-      await categoryService.deleteFamily(deleteTarget.id);
-    } else if (deleteTarget.type === "group") {
-      await categoryService.deleteGroup(deleteTarget.id);
-    } else {
-      await categoryService.deleteCategory(deleteTarget.id);
-    }
-    invalidateCategories();
-    showSuccess("Eliminado correctamente");
-    setDeleteOpen(false);
-    setDeleteTarget(null);
+  const apply = async () => {
+    if (!action || busy) return;
+    setBusy(true);
+    try {
+      if (action.kind === "archive") await categoryService.setActive(action.node,action.id,!action.active);
+      else if (action.kind === "reassign") { if (!target) return; await categoryService.reassign(action.id,target); }
+      else { if (!target) return; await productService.update(action.id,{category_id:target}); }
+      await refresh();setAction(null);showSuccess("Cambio aplicado");
+    } catch(e) {showError((e as Error).message);} finally {setBusy(false);}
   };
-
-  const getGroupsForFamily = (familyId: string) =>
-    managedGroups
-      .filter((g) => g.familyId === familyId)
-      .sort((a, b) => a.order - b.order);
-
-  const getCategoriesForGroup = (groupId: string) =>
-    managedCategories
-      .filter((c) => c.groupId === groupId)
-      .sort((a, b) => a.order - b.order);
-
-  const familyIcons: Record<string, LucideIcon> = {
-    Package,
-    Briefcase,
-    Settings2,
-    Layers,
-  };
-  const groupIcons: Record<string, LucideIcon> = {
-    Folder,
-    FolderOpen,
-    Tag,
-    Package,
-    Briefcase,
-    Settings2,
-  };
-
-  const colorPresets = [
-    {
-      label: "Verde",
-      color:
-        "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-      active: "bg-emerald-600 text-white",
-    },
-    {
-      label: "Azul",
-      color:
-        "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-      active: "bg-blue-600 text-white",
-    },
-    {
-      label: "Naranja",
-      color:
-        "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-      active: "bg-orange-600 text-white",
-    },
-    {
-      label: "Morado",
-      color:
-        "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-      active: "bg-purple-600 text-white",
-    },
-    {
-      label: "Rojo",
-      color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-      active: "bg-red-600 text-white",
-    },
-    {
-      label: "Cian",
-      color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
-      active: "bg-cyan-600 text-white",
-    },
-    {
-      label: "Rosa",
-      color: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400",
-      active: "bg-pink-600 text-white",
-    },
-    {
-      label: "Ámbar",
-      color:
-        "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-      active: "bg-amber-600 text-white",
-    },
-  ];
-
-  const dialogTitle =
-    dialogMode === "add"
-      ? "Nueva " +
-        (dialogNodeType === "family"
-          ? "Familia"
-          : dialogNodeType === "group"
-          ? "Grupo"
-          : "Categoría")
-      : "Editar " +
-        (dialogNodeType === "family"
-          ? "Familia"
-          : dialogNodeType === "group"
-          ? "Grupo"
-          : "Categoría");
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <FolderTree className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-            Gestión de Categorías
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Administra la jerarquía de familias, grupos y categorías
-            para organizar tus productos
-          </p>
-        </div>
-        <Button
-          onClick={() => openAddDialog("family", "")}
-          className="rounded-xl bg-orange-600 hover:bg-orange-700"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Nueva Familia
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="rounded-2xl shadow-sm border-emerald-200 dark:border-emerald-800">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
-              <Layers className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div>
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                Familias
-              </p>
-              <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">
-                {stats.families}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl shadow-sm border-blue-200 dark:border-blue-800">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
-              <Folder className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                Grupos
-              </p>
-              <p className="text-xl font-bold text-blue-700 dark:text-blue-300">
-                {stats.groups}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl shadow-sm border-purple-200 dark:border-purple-800">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
-              <Tag className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
-                Categorías
-              </p>
-              <p className="text-xl font-bold text-purple-700 dark:text-purple-300">
-                {stats.categories}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl shadow-sm border-orange-200 dark:border-orange-800">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center">
-              <ImageIcon className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-            </div>
-            <div>
-              <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                Con Imagen
-              </p>
-              <p className="text-xl font-bold text-orange-700 dark:text-orange-300">
-                {stats.withImages}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="rounded-2xl shadow-sm">
-        <CardContent className="p-0">
-          {managedFamilies.length === 0 ? (
-            <div className="text-center py-16">
-              <FolderTree className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-muted-foreground font-medium">
-                No hay categorías configuradas
-              </p>
-              <p className="text-xs text-muted-foreground/60 mt-1">
-                Crea tu primera familia para comenzar
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {managedFamilies
-                .sort((a, b) => a.order - b.order)
-                .map((family) => {
-                  const isExpanded = expandedFamilies.has(family.id);
-                  const groups = getGroupsForFamily(family.id);
-                  const FamilyIcon = familyIcons[family.icon] || Package;
-                  const totalCategories = groups.reduce(
-                    (sum, g) =>
-                      sum + getCategoriesForGroup(g.id).length,
-                    0
-                  );
-
-                  return (
-                    <div key={family.id} className="group/fam">
-                      <div className="flex items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors">
-                        <button
-                          onClick={() => toggleFamily(family.id)}
-                          className="p-1 hover:bg-muted rounded-lg transition-colors"
-                        >
-                          {isExpanded ? (
-                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                          )}
-                        </button>
-
-                        <div
-                          className={
-                            "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 " +
-                            family.color
-                          }
-                        >
-                          <FamilyIcon className="w-4.5 h-4.5" />
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm">{family.label}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {groups.length} grupo
-                            {groups.length !== 1 ? "s" : ""} &middot;{" "}
-                            {totalCategories} categor
-                            {totalCategories !== 1 ? "ías" : "ía"}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-1 opacity-0 group-hover/fam:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => openAddDialog("group", family.id)}
-                            className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                            title="Agregar grupo"
-                          >
-                            <Plus className="w-3.5 h-3.5 text-blue-500" />
-                          </button>
-                          <button
-                            onClick={() => openEditDialog("family", family)}
-                            className="p-1.5 hover:bg-muted rounded-lg transition-colors"
-                            title="Editar familia"
-                          >
-                            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setDeleteTarget({
-                                id: family.id,
-                                type: "family",
-                                name: family.label,
-                              });
-                              setDeleteOpen(true);
-                            }}
-                            className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                            title="Eliminar familia"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {isExpanded && groups.length > 0 && (
-                        <div className="bg-muted/10">
-                          {groups.map((group) => {
-                            const isGroupExpanded = expandedGroups.has(
-                              group.id
-                            );
-                            const categories = getCategoriesForGroup(
-                              group.id
-                            );
-                            const GroupIcon =
-                              groupIcons[group.icon] || Folder;
-
-                            return (
-                              <div
-                                key={group.id}
-                                className="group/grp border-l-4 border-muted ml-8"
-                              >
-                                <div className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors">
-                                  <button
-                                    onClick={() => toggleGroup(group.id)}
-                                    className="p-0.5 hover:bg-muted rounded transition-colors"
-                                  >
-                                    {isGroupExpanded ? (
-                                      <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                                    ) : (
-                                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-                                    )}
-                                  </button>
-
-                                  <div
-                                    className={
-                                      "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 " +
-                                      group.color
-                                    }
-                                  >
-                                    <GroupIcon className="w-4 h-4" />
-                                  </div>
-
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-sm">
-                                      {group.label}
-                                    </p>
-                                    <p className="text-[10px] text-muted-foreground">
-                                      {categories.length} categor
-                                      {categories.length !== 1
-                                        ? "ías"
-                                        : "ía"}
-                                    </p>
-                                  </div>
-
-                                  <div className="flex items-center gap-1 opacity-0 group-hover/grp:opacity-100 transition-opacity">
-                                    <button
-                                      onClick={() =>
-                                        openAddDialog("category", group.id)
-                                      }
-                                      className="p-1.5 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-                                      title="Agregar categoría"
-                                    >
-                                      <Plus className="w-3.5 h-3.5 text-green-500" />
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        openEditDialog("group", group)
-                                      }
-                                      className="p-1.5 hover:bg-muted rounded-lg transition-colors"
-                                      title="Editar grupo"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        setDeleteTarget({
-                                          id: group.id,
-                                          type: "group",
-                                          name: group.label,
-                                        });
-                                        setDeleteOpen(true);
-                                      }}
-                                      className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                      title="Eliminar grupo"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {isGroupExpanded && categories.length > 0 && (
-                                  <div className="pb-2">
-                                    {categories.map((cat) => (
-                                      <div
-                                        key={cat.id}
-                                        className="group/cat flex items-center gap-3 px-5 py-2 ml-8 hover:bg-muted/30 transition-colors"
-                                      >
-                                        <div className="w-7 h-7 rounded-lg bg-muted/50 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                                          {cat.imageUrl ? (
-                                            <img
-                                              src={cat.imageUrl}
-                                              alt={cat.name}
-                                              className="w-full h-full object-cover"
-                                            />
-                                          ) : (
-                                            <Tag className="w-3.5 h-3.5 text-muted-foreground/40" />
-                                          )}
-                                        </div>
-                                        <p className="text-sm flex-1 min-w-0 truncate">
-                                          {cat.name}
-                                        </p>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover/cat:opacity-100 transition-opacity">
-                                          <button
-                                            onClick={() =>
-                                              openEditDialog("category", cat)
-                                            }
-                                            className="p-1.5 hover:bg-muted rounded-lg transition-colors"
-                                            title="Editar categoría"
-                                          >
-                                            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                                          </button>
-                                          <button
-                                            onClick={() => {
-                                              setDeleteTarget({
-                                                id: cat.id,
-                                                type: "category",
-                                                name: cat.name,
-                                              });
-                                              setDeleteOpen(true);
-                                            }}
-                                            className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                            title="Eliminar categoría"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {isGroupExpanded && categories.length === 0 && (
-                                  <div className="ml-16 py-3 text-xs text-muted-foreground/50">
-                                    Sin categorías &mdash;{" "}
-                                    <button
-                                      onClick={() =>
-                                        openAddDialog("category", group.id)
-                                      }
-                                      className="text-orange-600 dark:text-orange-400 hover:underline"
-                                    >
-                                      agregar una
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {isExpanded && groups.length === 0 && (
-                        <div className="ml-16 py-3 text-xs text-muted-foreground/50 bg-muted/10">
-                          Sin grupos &mdash;{" "}
-                          <button
-                            onClick={() => openAddDialog("group", family.id)}
-                            className="text-orange-600 dark:text-orange-400 hover:underline"
-                          >
-                            agregar uno
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl">{dialogTitle}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>
-                {dialogNodeType === "category"
-                  ? "Nombre de la Categoría *"
-                  : "Nombre *"}
-              </Label>
-              <Input
-                value={formLabel}
-                onChange={(e) => setFormLabel(e.target.value)}
-                className="rounded-xl"
-                placeholder={
-                  dialogNodeType === "family"
-                    ? "Ej: Productos"
-                    : dialogNodeType === "group"
-                    ? "Ej: Repuestos"
-                    : "Ej: Filtración"
-                }
-                autoFocus
-              />
-            </div>
-
-            {dialogNodeType !== "category" && (
-              <div className="space-y-2">
-                <Label>Icono</Label>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(familyIcons).map(([name, Icon]) => (
-                    <button
-                      key={name}
-                      onClick={() => setFormIcon(name)}
-                      className={
-                        "w-10 h-10 rounded-xl flex items-center justify-center transition-all " +
-                        (formIcon === name
-                          ? "bg-orange-100 dark:bg-orange-900/30 ring-2 ring-orange-500"
-                          : "bg-muted/50 hover:bg-muted")
-                      }
-                    >
-                      <Icon className="w-4 h-4" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {dialogNodeType !== "category" && (
-              <div className="space-y-2">
-                <Label>Color</Label>
-                <div className="flex flex-wrap gap-2">
-                  {colorPresets.map((preset) => (
-                    <button
-                      key={preset.label}
-                      onClick={() => {
-                        setFormColor(preset.color);
-                        setFormActiveColor(preset.active);
-                      }}
-                      className={
-                        "px-3 py-1.5 rounded-lg text-xs font-medium transition-all " +
-                        (formColor === preset.color
-                          ? "ring-2 ring-offset-2 ring-orange-500"
-                          : "hover:ring-1 hover:ring-muted-foreground/30") +
-                        " " +
-                        preset.color
-                      }
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {dialogNodeType === "category" && (
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4" />
-                  Imagen de la Categoría
-                </Label>
-                <ImageUpload
-                  value={formImageUrl}
-                  onChange={(url) => setFormImageUrl(url)}
-                  previewClassName="w-24 h-24"
-                />
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-              className="rounded-xl"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={!formLabel.trim()}
-              className="rounded-xl bg-orange-600 hover:bg-orange-700"
-            >
-              {dialogMode === "add" ? "Crear" : "Guardar Cambios"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent className="rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {" "}
-              {"¿"}Eliminar{" "}
-              {deleteTarget?.type === "family"
-                ? "familia"
-                : deleteTarget?.type === "group"
-                ? "grupo"
-                : "categoría"}
-              ?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget?.type === "family"
-                ? 'Se eliminará "' +
-                  deleteTarget.name +
-                  '" y todos sus grupos y categorías asociadas.'
-                : deleteTarget?.type === "group"
-                ? 'Se eliminará "' +
-                  deleteTarget.name +
-                  '" y todas sus categorías asociadas.'
-                : 'Se eliminará la categoría "' +
-                  deleteTarget?.name +
-                  '". Los productos que la usen no se verán afectados, pero perderán esta clasificación.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="rounded-xl bg-red-600 hover:bg-red-700"
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+  if (isLoading) return <p role="status">Cargando catálogo administrado…</p>;
+  if (error) return <div role="alert">No se pudo cargar el catálogo. <Button variant="outline" onClick={() => void refresh()}>Reintentar</Button></div>;
+  return <div className="space-y-6">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div><h2 className="text-xl font-semibold flex items-center gap-2"><FolderTree className="h-5 w-5"/>Catálogo de productos y servicios</h2><p className="text-sm text-muted-foreground mt-1">Tipo de artículo → Grupo → Categoría. Una sola clasificación para inventario, POS, tienda e importaciones.</p></div>
+      {canManage && <Button onClick={() => openEdit({kind:"group",parent:catalog.families[0]?.id ?? ""})}><Plus className="mr-2 h-4 w-4"/>Crear grupo</Button>}
     </div>
-  );
+    <div className="rounded-xl bg-muted/40 p-4 text-sm">Productos y Servicios son tipos fijos. Renombrar conserva las asociaciones. Archivar retira una opción de nuevas asignaciones y conserva los artículos existentes.</div>
+    {assignmentsError && <p role="alert" className="text-destructive">No se pudo consultar el uso de categorías. Recarga antes de gestionar asignaciones.</p>}
+    {pending.length>0 && <div className="rounded-xl border border-amber-300 p-4 space-y-3"><h3 className="font-semibold">{pending.length} artículos pendientes de vincular</h3>{pending.map(p=><div key={p.id} className="flex flex-wrap justify-between gap-2 text-sm"><span>{p.sku} · {p.name} · {p.product_family} / {p.category_group} / {p.category}</span><Button size="sm" variant="outline" onClick={()=>openAction({kind:"link",id:p.id,name:p.name,node:"category",family:p.product_family,count:1})}>Asignar categoría</Button></div>)}</div>}
+    {all.families.some(f=>!["productos","servicios"].includes(f.key)) && <p className="text-sm text-muted-foreground">Los tipos heredados no compatibles permanecen archivados para trazabilidad y no se ofrecen en productos.</p>}
+    <div className="flex flex-wrap gap-4 items-center"><Input className="max-w-md" aria-label="Buscar grupo o categoría" placeholder="Buscar grupo o categoría…" value={search} onChange={e=>setSearch(e.target.value)}/><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showArchived} onChange={e=>setShowArchived(e.target.checked)}/>Mostrar archivados</label></div>
+    {catalog.families.map(f=><section key={f.id} className="space-y-3"><h3 className="font-semibold text-lg">{f.label}</h3>
+      {all.groups.filter(g=>g.familyId===f.id&&(showArchived||g.isActive!==false)).filter(g=>!search||g.label.toLowerCase().includes(search.toLowerCase())||all.categories.some(c=>c.groupId===g.id&&c.name.toLowerCase().includes(search.toLowerCase()))).map(g=><div key={g.id} className="rounded-xl border overflow-hidden">
+        <div className="bg-muted/40 p-4 flex flex-wrap justify-between items-center gap-3"><div><h4 className="font-semibold">{g.label} {g.isActive===false&&<span className="text-xs font-normal">· Archivado</span>}</h4><p className="text-xs text-muted-foreground">{all.categories.filter(c=>c.groupId===g.id).length} categorías</p></div>
+          {canManage&&<div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={g.isActive===false} onClick={()=>openEdit({kind:"category",parent:g.id})}><Plus className="h-4 w-4 mr-1"/>Categoría</Button><Button size="sm" variant="ghost" aria-label={`Renombrar grupo ${g.label}`} onClick={()=>openEdit({kind:"group",id:g.id,parent:f.id},g.label)}><Pencil className="h-4 w-4"/></Button><Button size="sm" variant="ghost" onClick={()=>openAction({kind:"archive",node:"group",id:g.id,name:g.label,family:f.key,count:assignments.filter(p=>all.categories.some(c=>c.groupId===g.id&&c.id===p.category_id)).length,active:g.isActive!==false})}>{g.isActive===false?"Restaurar":"Archivar grupo"}</Button></div>}
+        </div>
+        <div className="divide-y">{all.categories.filter(c=>c.groupId===g.id&&(showArchived||c.isActive!==false)&&(!search||g.label.toLowerCase().includes(search.toLowerCase())||c.name.toLowerCase().includes(search.toLowerCase()))).map(c=><div key={c.id} className="p-4 flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">{c.name} {c.isActive===false&&<span className="text-xs text-muted-foreground">· Archivada</span>}</p><p className="text-sm text-muted-foreground">{count(c.id)} artículos vinculados, incluidos inactivos</p></div>{canManage&&<div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="ghost" disabled={c.isActive===false||g.isActive===false} aria-label={`Editar categoría ${c.name}`} onClick={()=>openEdit({kind:"category",id:c.id,parent:g.id},c.name,c.imageUrl)}><Pencil className="h-4 w-4"/></Button>
+          <Button size="sm" variant="outline" disabled={!!assignmentsError} onClick={()=>openAction({kind:"reassign",node:"category",id:c.id,name:c.name,family:f.key,count:count(c.id)})}><ArrowRightLeft className="h-4 w-4 mr-1"/>Reasignar</Button>
+          <Button size="sm" variant="ghost" disabled={g.isActive===false} onClick={()=>openAction({kind:"archive",node:"category",id:c.id,name:c.name,family:f.key,count:count(c.id),active:c.isActive!==false})}><Archive className="h-4 w-4 mr-1"/>{c.isActive===false?"Restaurar":"Archivar"}</Button>
+        </div>}</div>)}</div>
+        {!all.categories.some(c=>c.groupId===g.id)&&<p className="p-4 text-sm text-muted-foreground">Crea la primera categoría de este grupo.</p>}
+      </div>)}
+    </section>)}
+    <Dialog open={!!edit} onOpenChange={open=>{if(!open&&!busy)setEdit(null);}}><DialogContent><DialogHeader><DialogTitle>{edit?.id?"Editar":"Crear"} {edit?.kind==="group"?"grupo":"categoría"}</DialogTitle><DialogDescription>Los artículos conservan su vínculo cuando cambias el nombre.</DialogDescription></DialogHeader>
+      <form className="space-y-4" onSubmit={e=>{e.preventDefault();void save();}}>
+        {edit?.kind==="group"&&!edit.id&&<><Label htmlFor="catalog-type">Tipo de artículo</Label><select id="catalog-type" className={selectClass} value={edit.parent} onChange={e=>setEdit({...edit,parent:e.target.value})}>{catalog.families.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select></>}
+        <Label htmlFor="catalog-name">Nombre</Label><Input id="catalog-name" autoFocus value={name} maxLength={100} onChange={e=>setName(e.target.value)}/>
+        {edit?.kind==="category"&&<ImageUpload value={image} onChange={setImage} compact/>}
+        <div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={busy} onClick={()=>setEdit(null)}>Cancelar</Button><Button type="submit" disabled={busy||!name.trim()||!edit?.parent}>{busy?"Guardando…":"Guardar"}</Button></div>
+      </form>
+    </DialogContent></Dialog>
+    <Dialog open={!!action} onOpenChange={open=>{if(!open&&!busy)setAction(null);}}><DialogContent><DialogHeader><DialogTitle>{action?.kind==="archive"?(action.active?"Archivar":"Restaurar"):"Reasignar clasificación"}</DialogTitle><DialogDescription>{action?.name} · {action?.count} artículos vinculados.</DialogDescription></DialogHeader>
+      {action?.kind==="archive"?<p className="text-sm">{action.active?"Los artículos conservan su clasificación. Esta opción dejará de ofrecerse en nuevas asignaciones; si es un grupo, también sus categorías.":"Volverá a estar disponible para nuevas asignaciones."}</p>:<div className="space-y-3"><p className="text-sm">{action?.kind==="reassign"?"Se trasladarán todos los artículos, incluidos inactivos, al destino y se archivará la categoría de origen. No cambia precios, stock ni comprobantes históricos.":"Selecciona el destino de este artículo."}</p><Label htmlFor="catalog-target">Categoría destino</Label><select id="catalog-target" className={selectClass} value={target} onChange={e=>setTarget(e.target.value)}><option value="">Selecciona un destino</option>{catalog.categories.filter(c=>c.id!==action?.id&&familyForGroup(c.groupId)===action?.family).map(c=><option key={c.id} value={c.id}>{catalog.groups.find(g=>g.id===c.groupId)?.label} / {c.name}</option>)}</select></div>}
+      <div className="flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={()=>setAction(null)}>Cancelar</Button><Button disabled={busy||(action?.kind!=="archive"&&!target)} onClick={()=>void apply()}>{busy?"Aplicando…":"Confirmar cambio"}</Button></div>
+    </DialogContent></Dialog>
+  </div>;
 }

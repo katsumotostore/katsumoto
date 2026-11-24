@@ -9,12 +9,18 @@ import {
 import { useState, useRef, useEffect } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 
-import { CATEGORY_TREE } from "@/lib/constants";
+import { useManagedCatalog } from "@/hooks/useManagedCatalog";
 import { STORE_CONFIG, getWhatsAppUrl } from "@/lib/store-config";
 
+const categoryIconMap: Record<string, LucideIcon> = {
+  Package, Wrench, Cog, Briefcase, Truck,
+};
+
+export function StoreHeader() {
+  const { tree: categoryTree } = useManagedCatalog();
 const categoryNavItems = [
   { key: "all", label: "Todo", icon: null },
-  ...Object.entries(CATEGORY_TREE).flatMap(([, fam]) =>
+  ...Object.entries(categoryTree).flatMap(([, fam]) =>
     Object.entries(fam.groups).map(([gKey, gVal]) => ({
       key: gKey,
       label: gVal.label,
@@ -23,11 +29,7 @@ const categoryNavItems = [
   ),
 ];
 
-const categoryIconMap: Record<string, LucideIcon> = {
-  Package, Wrench, Cog, Briefcase, Truck,
-};
 
-export function StoreHeader() {
   const { totalItems } = useCart();
   const _location = useLocation();
   const navigate = useNavigate();
@@ -41,7 +43,7 @@ export function StoreHeader() {
     if (debouncedSearch.trim()) {
       navigate(`/?search=${encodeURIComponent(debouncedSearch.trim())}`);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, navigate]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -131,7 +133,7 @@ export function StoreHeader() {
                       >
                         Todas las categorías
                       </button>
-                      {Object.entries(CATEGORY_TREE).map(([famKey, fam]) => (
+                      {Object.entries(categoryTree).map(([famKey, fam]) => (
                         <div key={famKey}>
                           <p className="px-4 pt-3 pb-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{fam.label}</p>
                           {Object.entries(fam.groups).map(([gKey, gVal]) => (

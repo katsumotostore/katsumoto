@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Warehouse, Store, Globe, Package, Search, Filter, Copy, type LucideIcon } from "lucide-react";
 
-type FilterMode = "all" | "low_stock" | "out_of_stock" | "imbalance";
+type FilterMode = "all" | "low_stock" | "out_of_stock" | "imbalance" | "unassigned";
 
 const branchTypeIcons: Record<string, LucideIcon> = { warehouse: Warehouse, pos: Store, online: Globe };
 
@@ -23,7 +23,7 @@ export function BranchStockReport() {
   );
 
   const activeProducts = useMemo(
-    () => products.filter((p) => p.is_active),
+    () => products.filter((p) => p.is_active && p.product_family === "productos"),
     [products]
   );
 
@@ -44,11 +44,12 @@ export function BranchStockReport() {
               ? branches.find((b) => b.id === branch.stock_source_branch_id)?.name || ""
               : "",
             stock,
+            assigned: !!bs,
             minStock: bs?.min_stock ?? product.min_stock,
             maxStock: bs?.max_stock ?? product.max_stock,
           };
         });
-        const totalStock = getTotalStock(branchStocks, product.id);
+        const totalStock = getTotalStock(branchStocks, product.id, activeBranches);
         return {
           productId: product.id,
           productName: product.name,
@@ -64,15 +65,16 @@ export function BranchStockReport() {
           return false;
         }
         if (filterMode === "out_of_stock") {
-          return item.totalStock === 0;
+          return item.branchData.some((bd) => !bd.isMirror && bd.assigned && bd.stock === 0);
         }
+        if (filterMode === "unassigned") return item.branchData.some((bd) => !bd.isMirror && !bd.assigned);
         if (filterMode === "low_stock") {
           return item.branchData.some(
             (bd) => !bd.isMirror && bd.stock > 0 && bd.stock <= bd.minStock
           );
         }
         if (filterMode === "imbalance") {
-          const physicalStocks = item.branchData.filter((bd) => !bd.isMirror).map((bd) => bd.stock);
+          const physicalStocks = item.branchData.filter((bd) => !bd.isMirror && bd.assigned).map((bd) => bd.stock);
           const max = Math.max(...physicalStocks);
           const zeroes = physicalStocks.filter((s) => s === 0).length;
           return max > 0 && zeroes > 0;
@@ -84,22 +86,33 @@ export function BranchStockReport() {
   const branchSummary = useMemo(() => {
     return activeBranches.map((branch) => {
       const isMirror = !!branch.stock_source_branch_id;
-      const physicalId = isMirror ? branch.stock_source_branch_id! : branch.id;
-      const stocks = branchStocks.filter((bs) => bs.branch_id === physicalId);
-      const totalProducts = stocks.filter((bs) => bs.stock > 0).length;
-      const totalUnits = stocks.reduce((s, bs) => s + bs.stock, 0);
-      const outOfStock = activeProducts.filter((p) => {
-        const stock = getBranchStock(branchStocks, branch.id, p.id, branches);
-        return stock === 0;
-      }).length;
-      return { branch, isMirror, totalProducts, totalUnits, outOfStock };
+      const values = reportData.flatMap((item) => item.branchData.filter((bd) => bd.branchId === branch.id));
+      const totalProducts = values.filter((bd) => bd.assigned && bd.stock > 0).length;
+      const totalUnits = values.reduce((sum, bd) => sum + bd.stock, 0);
+      const outOfStock = values.filter((bd) => bd.assigned && bd.stock === 0).length;
+      const unassigned = values.filter((bd) => !bd.assigned).length;
+      return { branch, isMirror, totalProducts, totalUnits, outOfStock, unassigned };
     });
-  }, [activeBranches, branchStocks, activeProducts, branches]);
+  }, [activeBranches, reportData]);
+
+  const residualRows = branchStocks.filter((bs) => activeBranches.some((b) => b.stock_source_branch_id && b.id === bs.branch_id));
+  const serviceCount = products.filter((p) => p.is_active && p.product_family === "servicios").length;
+  const totalUnits = reportData.reduce((sum, item) => sum + item.totalStock, 0);
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {branchSummary.map(({ branch, isMirror, totalProducts, totalUnits, outOfStock }) => {
+      <div className="rounded-2xl border bg-muted/20 p-5 space-y-2">
+        <h3 className="text-lg font-semibold">Inventario físico por sede</h3>
+        <p className="text-3xl font-bold tabular-nums">{totalUnits.toLocaleString("es-PE")} <span className="text-sm font-normal text-muted-foreground">unidades registradas</span></p>
+        <p className="text-sm text-muted-foreground">{reportData.length} productos físicos activos · Solo sedes activas · {serviceCount} servicios excluidos</p>
+        <p className="text-sm text-muted-foreground">Las tarjetas y la tabla responden a los mismos filtros. El total cuenta cada sede física una sola vez.</p>
+      </div>
+      {residualRows.length > 0 && <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
+        <p className="font-semibold">Registros propios de sedes con stock compartido</p>
+        <p>Se excluyen {residualRows.length} registros de stock independientes de estas sedes para evitar duplicaciones. Permanecen en la base de datos para su conciliación.</p>
+      </div>}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {branchSummary.map(({ branch, isMirror, totalProducts, totalUnits, outOfStock, unassigned }) => {
           const Icon = branchTypeIcons[branch.type] || Package;
           return (
             <Card key={branch.id} className="rounded-2xl shadow-sm">
@@ -111,24 +124,26 @@ export function BranchStockReport() {
                   <div>
                     <p className="font-semibold text-sm">{branch.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {isMirror ? `Espejo de ${branches.find((b) => b.id === branch.stock_source_branch_id)?.name}` : branch.type}
+                      {isMirror ? `Comparte stock con ${branches.find((b) => b.id === branch.stock_source_branch_id)?.name || "sede no disponible"}` : ({ warehouse: "Almacén", pos: "Punto de venta", online: "Tienda virtual" }[branch.type] || "Sede")}
                     </p>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <p className="text-lg font-bold text-green-600">{totalProducts}</p>
-                    <p className="text-[10px] text-muted-foreground">Con stock</p>
+                    <p className="text-[10px] text-muted-foreground">Productos con existencias</p>
                   </div>
                   <div>
                     <p className="text-lg font-bold">{totalUnits}</p>
-                    <p className="text-[10px] text-muted-foreground">Uds. total</p>
+                    <p className="text-[10px] text-muted-foreground">Unidades registradas</p>
                   </div>
                   <div>
                     <p className="text-lg font-bold text-red-600">{outOfStock}</p>
-                    <p className="text-[10px] text-muted-foreground">Sin stock</p>
+                    <p className="text-[10px] text-muted-foreground">Productos agotados</p>
                   </div>
                 </div>
+                <p className="mt-3 text-xs text-muted-foreground">{unassigned} productos sin asignación</p>
+                {isMirror && <p className="mt-2 text-xs font-medium text-blue-600 dark:text-blue-400">Stock compartido: no suma al total.</p>}
               </CardContent>
             </Card>
           );
@@ -139,7 +154,7 @@ export function BranchStockReport() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar producto por nombre o SKU..."
+            aria-label="Buscar producto por nombre o SKU" placeholder="Buscar producto por nombre o SKU..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="rounded-xl pl-9"
@@ -148,13 +163,14 @@ export function BranchStockReport() {
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-muted-foreground" />
           <Select value={filterMode} onValueChange={(v) => setFilterMode(v as FilterMode)}>
-            <SelectTrigger className="rounded-xl w-[180px]">
+            <SelectTrigger aria-label="Filtrar por estado de stock" className="rounded-xl w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="low_stock">Stock bajo</SelectItem>
-              <SelectItem value="out_of_stock">Agotados</SelectItem>
+              <SelectItem value="out_of_stock">Agotados en alguna sede</SelectItem>
+              <SelectItem value="unassigned">Sin asignación en alguna sede</SelectItem>
               <SelectItem value="imbalance">Desbalance</SelectItem>
             </SelectContent>
           </Select>
@@ -168,11 +184,11 @@ export function BranchStockReport() {
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Producto</th>
-                  <th className="text-center py-3 px-4 font-semibold text-muted-foreground">Total</th>
+                  <th className="text-center py-3 px-4 font-semibold text-muted-foreground">Total físico</th>
                   {activeBranches.map((b) => (
                     <th key={b.id} className="text-center py-3 px-4 font-semibold text-muted-foreground">
                       {b.name}
-                      {b.stock_source_branch_id && <span className="block text-[10px] text-blue-500 font-normal">(espejo)</span>}
+                      {b.stock_source_branch_id && <span className="block text-[10px] text-blue-500 font-normal">(compartido, no suma)</span>}
                     </th>
                   ))}
                 </tr>
@@ -191,12 +207,14 @@ export function BranchStockReport() {
                     </td>
                     {item.branchData.map((bd) => {
                       const isLow = !bd.isMirror && bd.stock > 0 && bd.stock <= bd.minStock;
-                      const isZero = bd.stock === 0;
+                      const isZero = bd.assigned && bd.stock === 0;
                       return (
                         <td key={bd.branchId} className="py-3 px-4 text-center">
                           <span className={`font-bold ${bd.isMirror ? "text-blue-600" : isZero ? "text-red-600" : isLow ? "text-amber-600" : "text-green-600"}`}>
-                            {bd.stock}
+                            {bd.assigned ? bd.stock : "—"}
                           </span>
+                          {!bd.assigned && <p className="text-xs text-muted-foreground">Sin asignación</p>}
+                          {bd.assigned && isZero && <p className="text-xs text-red-600">Agotado</p>}
                           {isLow && !isZero && (
                             <p className="text-[10px] text-amber-600">mín. {bd.minStock}</p>
                           )}
@@ -220,7 +238,7 @@ export function BranchStockReport() {
       </Card>
 
       <p className="text-xs text-muted-foreground text-center">
-        {reportData.length} productos · Filtrar por desbalance muestra productos con stock en una sede y agotados en otra
+        Los saldos reflejan los registros actuales; no certifican un conteo físico. Desbalance compara productos asignados con existencias en una sede y agotados en otra. Las notas y los saldos iniciales deben conciliarse antes de ajustar existencias.
       </p>
     </div>
   );

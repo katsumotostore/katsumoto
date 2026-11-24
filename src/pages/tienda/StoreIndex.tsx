@@ -4,32 +4,28 @@ import { useSearchParams } from "react-router-dom";
 import { useStorePublicProducts, useStorePublicBranches, useStorePublicStock } from "@/hooks/useStorePublic";
 import { useCart } from "@/components/store/CartContext";
 import { formatCents } from "@/lib/format";
-import { CATEGORY_TREE } from "@/lib/constants";
+import { useManagedCatalog } from "@/hooks/useManagedCatalog";
+import { catalogCategories } from "@/lib/managed-catalog";
 import { getBranchStock, getStoreStockBranchId } from "@/lib/utils/stock";
 import { StoreProductCard } from "@/components/store/StoreProductCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Search, Wheat, Truck, Shield, Headphones, Package, Briefcase,
-  Wrench, Cog as CogIcon, ArrowRight, X, Zap, Star,
+  Search, Truck, Shield, Headphones, Package, Briefcase,
+  Cog as CogIcon, ArrowRight, X, Zap, Star,
   CheckCircle, Phone, MapPin, ChevronRight, ShoppingCart,
   MessageCircle,
 } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
 import { STORE_CONFIG, getWhatsAppUrl } from "@/lib/store-config";
-import type { ProductFamily } from "@/lib/types";
+
 
 const familyIcons: Record<string, React.ComponentType<{ className?: string }>> = { productos: Package, servicios: Briefcase };
 
-const categoryCards = [
-  { family: "productos" as ProductFamily, group: "repuestos", label: "Repuestos", desc: "Filtros, rodamientos, bombas, correas", icon: CogIcon, color: "from-blue-500 to-blue-600", bg: "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800" },
-  { family: "productos" as ProductFamily, group: "herramientas", label: "Herramientas", desc: "Manuales, eléctricas, medición", icon: Wrench, color: "from-amber-500 to-amber-600", bg: "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800" },
-  { family: "productos" as ProductFamily, group: "maquinas", label: "Máquinas", desc: "Cosechadoras, tractores, fumigadoras", icon: Wheat, color: "from-orange-500 to-orange-600", bg: "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800" },
-  { family: "servicios" as ProductFamily, group: "mantenimiento", label: "Mantenimiento", desc: "Preventivo, correctivo, instalación", icon: Shield, color: "from-purple-500 to-purple-600", bg: "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800" },
-];
-
 export default function StoreIndex() {
+  const { catalog, tree: categoryTree } = useManagedCatalog();
+  const categoryCards = catalog.groups.map(g => ({ group:g.key,label:g.label,desc:catalog.families.find(f=>f.id===g.familyId)?.label ?? "",icon:Package,color:"from-orange-500 to-orange-600",bg:"bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900" }));
   const { data: allProducts = [] } = useStorePublicProducts();
   const { data: branches = [] } = useStorePublicBranches();
   const { data: branchStocks = [] } = useStorePublicStock();
@@ -66,6 +62,8 @@ export default function StoreIndex() {
     const params = new URLSearchParams(searchParams);
     if (value === "all") params.delete(key);
     else params.set(key, value);
+    if (key === "family") params.delete("group");
+    if (key === "group") params.delete("family");
     setSearchParams(params);
     setSelectedCategory("all");
   };
@@ -83,23 +81,12 @@ export default function StoreIndex() {
       if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q) && !p.category.toLowerCase().includes(q)) return false;
       if (familyFilter !== "all" && p.product_family !== familyFilter) return false;
       if (groupFilter !== "all" && p.category_group !== groupFilter) return false;
-      if (selectedCategory !== "all" && p.category !== selectedCategory) return false;
+      if (selectedCategory !== "all" && p.category_id !== selectedCategory) return false;
       return true;
     });
   }, [allProducts, familyFilter, groupFilter, selectedCategory, debouncedSearch, searchQuery]);
 
-  const allCategories = useMemo(() => {
-    if (groupFilter !== "all") {
-      const fam = familyFilter !== "all" ? CATEGORY_TREE[familyFilter as ProductFamily] : null;
-      const group = fam?.groups[groupFilter];
-      return group ? [...group.categories] : [];
-    }
-    if (familyFilter !== "all") {
-      const fam = CATEGORY_TREE[familyFilter as ProductFamily];
-      return fam ? Object.values(fam.groups).flatMap(g => [...g.categories]) : [];
-    }
-    return Object.values(CATEGORY_TREE).flatMap(f => Object.values(f.groups).flatMap(g => [...g.categories]));
-  }, [familyFilter, groupFilter]);
+  const allCategories = useMemo(() => catalogCategories(catalog, familyFilter, groupFilter), [catalog, familyFilter, groupFilter]);
 
   const featuredProducts = useMemo(() =>
     products.filter(p => p.is_active && getStoreStock(p.id) > 0).slice(0, 4),
@@ -327,7 +314,7 @@ export default function StoreIndex() {
           <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-none pb-1">
             {[
               { key: "all", label: "Todo", icon: Package },
-              ...Object.entries(CATEGORY_TREE).map(([key, val]) => ({ key, label: val.label, icon: familyIcons[key] || Package })),
+              ...Object.entries(categoryTree).map(([key, val]) => ({ key, label: val.label, icon: familyIcons[key] || Package })),
             ].map(fam => (
               <button key={fam.key} onClick={() => setFilter("family", fam.key)} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${familyFilter === fam.key && groupFilter === "all" ? "bg-orange-600 text-white shadow-md shadow-orange-500/20" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"}`}>
                 <fam.icon className="w-4 h-4" />{fam.label}
@@ -342,8 +329,8 @@ export default function StoreIndex() {
                 Todas
               </button>
               {allCategories.map(cat => (
-                <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${selectedCategory === cat ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800" : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700"}`}>
-                  {cat}
+                <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${selectedCategory === cat.id ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800" : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700"}`}>
+                  {cat.name}
                 </button>
               ))}
             </div>

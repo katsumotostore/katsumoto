@@ -16,7 +16,7 @@ export const storePublicService = {
   async getProducts(): Promise<Product[]> {
     const { data, error } = await supabase
       .from("products")
-      .select("id, name, sku, description, price_cents, image_url, unit, category, category_group, product_family, tags, is_active, tax_affectation")
+      .select("id, name, sku, description, price_cents, image_url, unit, category_id, category, category_group, product_family, tags, is_active, tax_affectation")
       .eq("is_active", true)
       .order("name");
     if (error) throw error;

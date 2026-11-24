@@ -1,10 +1,13 @@
+import { useState } from "react";
+import { useManagedCatalog } from "@/hooks/useManagedCatalog";
+import { categoryService } from "@/services/category.service";
+import { showError } from "@/utils/toast";
+import { useAuth } from "@/lib/auth-context";
 import { UseFormReturn } from "react-hook-form";
 import {
   UNITS,
   MACHINE_CATEGORIES,
   TAX_AFFECTATION_TYPES,
-  getGroupsForFamily,
-  getCategoriesForGroup,
 } from "@/lib/constants";
 import { ImageUpload } from "@/components/ImageUpload";
 import { PriceTiersEditor } from "@/components/inventory/PriceTiersEditor";
@@ -100,8 +103,34 @@ export function ProductFormDialog({
     setValue("selectedMachineIds", updated);
   };
 
-  const formGroups = getGroupsForFamily(formFamily);
-  const formCategories = getCategoriesForGroup(formFamily, formCategoryGroup);
+  const { catalog, isLoading: catalogLoading, error: catalogError, refresh } = useManagedCatalog();
+  const { user } = useAuth();
+  const canManage = !!user && ["owner","admin","inventory"].includes(user.role);
+  const [categorySearch, setCategorySearch] = useState("");
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const family = catalog.families.find(f => f.key === formFamily);
+  const formGroups = catalog.groups.filter(g => g.familyId === family?.id);
+  const group = formGroups.find(g => g.key === formCategoryGroup);
+  const formCategories = catalog.categories.filter(c => c.groupId === group?.id);
+  const categoryId = watch("category_id");
+  const validCategory = formCategories.find(c => c.id === categoryId);
+  const chooseCategory = (id: string) => {
+    const category = formCategories.find(c => c.id === id);
+    setValue("category_id", id, { shouldDirty: true });
+    setValue("category", category?.name ?? "", { shouldDirty: true, shouldValidate: true });
+  };
+  const createCategory = async () => {
+    if (!group || !categorySearch.trim() || creatingCategory) return;
+    setCreatingCategory(true);
+    try {
+      const category = await categoryService.createCategory({ groupId: group.id, name: categorySearch.trim() });
+      await refresh();
+      setValue("category_id", category.id, { shouldDirty: true });
+      setValue("category", category.name, { shouldDirty: true, shouldValidate: true });
+      setCategorySearch("");
+    } catch (error) { showError((error as Error).message); }
+    finally { setCreatingCategory(false); }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -111,7 +140,7 @@ export function ProductFormDialog({
             {editingProduct ? "Editar Producto" : "Nuevo Producto"}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSave)} className="space-y-0">
+        <form onSubmit={handleSubmit(data => { if (!validCategory) { showError("Selecciona una categoría activa del administrador"); return; } onSave({ ...data, category: validCategory.name }); })} className="space-y-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
             <div className="space-y-2">
               <Label>Nombre *</Label>
@@ -151,17 +180,16 @@ export function ProductFormDialog({
               </div>
             )}
             <div className={editingProduct ? "" : "space-y-2"}>
-              <Label>Familia</Label>
+              <Label>Tipo de artículo</Label>
               <Select
                 value={formFamily}
                 onValueChange={(v) => {
                   const fam = v as ProductFamily;
-                  const groups = getGroupsForFamily(fam);
-                  const firstGroup = groups.length > 0 ? groups[0].key : "";
-                  const cats = getCategoriesForGroup(fam, firstGroup as CategoryGroup);
-                  setValue("product_family", fam);
-                  setValue("category_group", firstGroup as CategoryGroup);
-                  setValue("category", cats[0] || "");
+                  setValue("product_family", fam, { shouldDirty: true });
+                  setValue("category_group", "", { shouldDirty: true });
+                  setValue("category", "", { shouldDirty: true });
+                  setValue("category_id", null, { shouldDirty: true });
+                  setCategorySearch("");
                 }}
               >
                 <SelectTrigger className="rounded-xl">
@@ -188,9 +216,10 @@ export function ProductFormDialog({
               <Select
                 value={formCategoryGroup}
                 onValueChange={(v) => {
-                  const cats = getCategoriesForGroup(formFamily, v as CategoryGroup);
-                  setValue("category_group", v as CategoryGroup);
-                  setValue("category", cats[0] || "");
+                  setValue("category_group", v as CategoryGroup, { shouldDirty: true });
+                  setValue("category", "", { shouldDirty: true });
+                  setValue("category_id", null, { shouldDirty: true });
+                  setCategorySearch("");
                 }}
               >
                 <SelectTrigger className="rounded-xl">
@@ -206,22 +235,16 @@ export function ProductFormDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Categoría</Label>
-              <Select
-                value={formCategory}
-                onValueChange={(v) => setValue("category", v)}
-              >
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {formCategories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Label>Categoría administrada</Label>
+              <Input aria-label="Buscar o crear categoría" placeholder="Buscar categoría…" value={categorySearch} onChange={e => setCategorySearch(e.target.value)} disabled={!group || catalogLoading} />
+              <Select value={validCategory?.id ?? ""} onValueChange={chooseCategory} disabled={!group || catalogLoading || !!catalogError}>
+                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecciona una categoría" /></SelectTrigger>
+                <SelectContent>{formCategories.filter(c => c.id === categoryId || c.name.toLocaleLowerCase().includes(categorySearch.toLocaleLowerCase())).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
+              {catalogError && <p role="alert" className="text-sm text-destructive">No se pudo cargar el catálogo. Recarga para reintentar.</p>}
+              {!validCategory && editingProduct && <p className="text-sm text-amber-700">Clasificación anterior: {formCategory || editingProduct.category}. Selecciona una categoría activa para guardar.</p>}
+              {errors.category && <p className="text-sm text-destructive">{errors.category.message}</p>}
+              {canManage && group && categorySearch.trim() && <Button type="button" variant="outline" disabled={creatingCategory} onClick={() => void createCategory()}>Crear «{categorySearch.trim()}» en {group.label}</Button>}
             </div>
             <div className="space-y-2">
               <Label>Unidad</Label>
@@ -441,7 +464,7 @@ export function ProductFormDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || catalogLoading || !!catalogError || !validCategory || creatingCategory}
               className="rounded-xl bg-orange-600 hover:bg-orange-700"
             >
               {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}

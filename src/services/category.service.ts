@@ -5,6 +5,7 @@ import type { ManagedCategoryFamily, ManagedCategoryGroup, ManagedCategory } fro
 function toFamily(row: Record<string, unknown>): ManagedCategoryFamily {
   return {
     id: String(row.id ?? ""),
+    isActive: row.is_active !== false,
     key: String(row.key ?? ""),
     label: String(row.label ?? ""),
     icon: String(row.icon ?? ""),
@@ -17,6 +18,7 @@ function toFamily(row: Record<string, unknown>): ManagedCategoryFamily {
 function toGroup(row: Record<string, unknown>): ManagedCategoryGroup {
   return {
     id: String(row.id ?? ""),
+    isActive: row.is_active !== false,
     familyId: String(row.family_id ?? ""),
     key: String(row.key ?? ""),
     label: String(row.label ?? ""),
@@ -29,6 +31,7 @@ function toGroup(row: Record<string, unknown>): ManagedCategoryGroup {
 function toCategory(row: Record<string, unknown>): ManagedCategory {
   return {
     id: String(row.id ?? ""),
+    isActive: row.is_active !== false,
     groupId: String(row.group_id ?? ""),
     name: String(row.name ?? ""),
     order: Number(row.sort_order ?? 0),
@@ -37,6 +40,21 @@ function toCategory(row: Record<string, unknown>): ManagedCategory {
 }
 
 export const categoryService = {
+  async setActive(kind: "category" | "group", id: string, active: boolean) {
+    const table = kind === "category" ? "managed_categories" : "managed_category_groups";
+    const { error } = await supabase.from(table).update({ is_active: active }).eq("id", id).eq("organization_id", getCurrentOrgId());
+    if (error) throw error;
+  },
+  async reassign(source: string, target: string): Promise<number> {
+    const { data, error } = await supabase.rpc("reassign_category", { p_source: source, p_target: target });
+    if (error) throw error;
+    return data;
+  },
+  async productAssignments() {
+    const { data, error } = await supabase.from("products").select("id,name,sku,category_id,category,product_family,category_group,is_active").eq("organization_id", getCurrentOrgId());
+    if (error) throw error;
+    return data as Array<{id:string;name:string;sku:string;category_id:string|null;category:string;product_family:string;category_group:string;is_active:boolean}>;
+  },
   async getFamilies(): Promise<ManagedCategoryFamily[]> {
     const orgId = await getCurrentOrgId();
     const { data, error } = await supabase

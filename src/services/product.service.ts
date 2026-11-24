@@ -67,6 +67,7 @@ export const productService = {
         product_family: formData.product_family,
         category_group: formData.category_group,
         category: formData.category,
+        category_id: formData.category_id,
         description: formData.description || null,
         unit: formData.unit,
         price_cents: formData.price_cents,
@@ -102,7 +103,7 @@ export const productService = {
     }
 
     const updateData = buildUpdatePayload(formData, [
-      "name", "sku", "product_family", "category_group", "category",
+      "name", "sku", "product_family", "category_group", "category", "category_id",
       "description", "unit", "price_cents", "cost_cents",
       "min_stock", "max_stock", "supplier", "tax_affectation", "image_url", "tags",
     ]);

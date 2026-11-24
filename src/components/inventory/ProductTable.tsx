@@ -1,3 +1,4 @@
+import { useManagedCatalog } from "@/hooks/useManagedCatalog";
 import { useMemo, memo } from "react";
 import { SortableHeader } from "@/components/data-table/SortableHeader";
 import { ProductImage } from "@/components/ProductImage";
@@ -6,7 +7,7 @@ import {
   MACHINE_CATEGORIES,
   TAX_AFFECTATION_TYPES,
 } from "@/lib/constants";
-import { getGroupInfo } from "@/components/CategoryTreeFilter";
+import { getGroupInfo } from "@/lib/managed-catalog";
 import {
   getMarginBadgeColor,
   getMarginColor,
@@ -68,6 +69,7 @@ export const ProductTable = memo(function ProductTable({
   onDelete,
   onPrintLabel,
 }: ProductTableProps) {
+  const { all: { groups: catalogGroups } } = useManagedCatalog();
   const productsWithTiers = useMemo(() => new Set(priceTiers.map((t) => t.product_id)), [priceTiers]);
 
   const machineMap = useMemo(() => {
@@ -135,7 +137,7 @@ export const ProductTable = memo(function ProductTable({
                   product.max_stock > 0
                     ? Math.min(100, (product.stock / product.max_stock) * 100)
                     : 0;
-                const grpInfo = getGroupInfo(product.category_group);
+                const grpInfo = getGroupInfo(product.category_group, catalogGroups);
                 const marginInfo = marginMap.get(product.id);
                 const hasTiers = productsWithTiers.has(product.id);
                 const tierCount = tierCountMap.get(product.id) || 0;

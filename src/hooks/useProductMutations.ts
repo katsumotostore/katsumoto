@@ -35,6 +35,7 @@ export function useProductMutations() {
         product_family: data.product_family,
         category_group: data.category_group,
         category: data.category,
+        category_id: data.category_id,
         description: data.description || undefined,
         unit: data.unit,
         price_cents: toCents(data.price_soles) as Cents,

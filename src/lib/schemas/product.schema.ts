@@ -5,9 +5,7 @@ import { z } from "zod";
 
 // ── Enums matching domain types ──
 export const ProductFamilyEnum = z.enum(["productos", "servicios"]);
-export const CategoryGroupEnum = z.enum([
-  "herramientas", "repuestos", "maquinas", "transporte", "maintenance",
-]);
+export const CategoryGroupEnum = z.string().trim().min(1, "Selecciona un grupo");
 export const TaxAffectationEnum = z.enum([
   "gravado", "exonerado", "inafecto", "exportacion",
 ]);
@@ -27,6 +25,7 @@ export const productFormSchema = z.object({
   sku: z.string().min(1, "SKU requerido").max(50, "Máximo 50 caracteres"),
   product_family: ProductFamilyEnum,
   category_group: CategoryGroupEnum,
+  category_id: z.string().uuid().nullable().optional(),
   category: z.string().min(1, "Categoría requerida"),
   description: z.string().max(500, "Máximo 500 caracteres").default(""),
   price_soles: z.preprocess((v) => (typeof v === "number" && isNaN(v) ? undefined : v), z.number().min(0.01, "Precio debe ser mayor a 0")),

@@ -8,7 +8,7 @@ export const productImportService = {
     const [families,groups,categories]=await Promise.all([categoryService.getFamilies(),categoryService.getGroups(),categoryService.getCategories()]);
     return categories.flatMap(c=>{
       const group=groups.find(g=>g.id===c.groupId),family=families.find(f=>f.id===group?.familyId);
-      return group&&family&&['productos','servicios'].includes(family.key)&&['herramientas','repuestos','maquinas','transporte','maintenance'].includes(group.key)?[{familia:family.key,grupo:group.key,categoria:c.name}]:[];
+      return group&&family&&['productos','servicios'].includes(family.key)&&c.isActive!==false&&group.isActive!==false&&family.isActive!==false?[{familia:family.key,grupo:group.key,categoria:c.name}]:[];
     });
   },
   async run(rows: ImportRow[], options: ImportOptions, apply: boolean, expected: ImportResult[], progress: (done: number)=>void) {

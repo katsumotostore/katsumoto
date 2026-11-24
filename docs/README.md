@@ -26,6 +26,7 @@ Esta carpeta agrupa la documentación vigente del sistema, organizada por tipo. 
   - [04 — Importación de productos](funcional/04-importacion-productos.md)
   - [05 — Reporte contable: revisión y pendientes](funcional/05-reporte-contable.md)
   - [06 — Utilidad por producto](funcional/06-utilidad-productos.md)
+  - [07 — Catálogo administrado](funcional/07-catalogo-administrado.md)
 - **Técnica**
   - [01 — Arquitectura](tecnica/01-arquitectura.md)
   - [02 — Base de datos](tecnica/02-base-de-datos.md)
