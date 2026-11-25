@@ -83,6 +83,8 @@ export const storageService = {
               reject(new Error("No se pudo crear el contexto canvas"));
               return;
             }
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, w, h);
             ctx.drawImage(img, 0, 0, w, h);
 
             const blob = await new Promise<Blob>((res, rej) =>
@@ -98,17 +100,17 @@ export const storageService = {
 
             const publicUrl = await storageService.uploadImage(
               blob,
-              file.name || "image.jpg",
+              "image.jpg",
             );
             resolve(publicUrl);
           } catch (err) {
             reject(err);
           }
         };
-        img.onerror = () => reject(new Error("Failed to load image"));
+        img.onerror = () => reject(new Error("No se pudo abrir la imagen. Usa JPG, PNG o WebP."));
         img.src = result;
       };
-      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.onerror = () => reject(new Error("No se pudo leer el archivo. Inténtalo de nuevo."));
       reader.readAsDataURL(file);
     });
   },

@@ -92,6 +92,7 @@ export function getProductsWithBranchStock(
       ...p,
       stock: bs?.stock ?? 0,
       min_stock: bs?.min_stock ?? p.min_stock,
+      max_stock: bs?.max_stock ?? p.max_stock,
     };
   });
 }

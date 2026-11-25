@@ -9,6 +9,7 @@ interface ImageUploadProps {
   className?: string;
   previewClassName?: string;
   compact?: boolean;
+  onUploadingChange?: (busy: boolean) => void;
   uploadFn?: (file: File) => Promise<string>;
 }
 
@@ -20,6 +21,7 @@ export function ImageUpload({
   previewClassName = "w-28 h-28",
   compact = false,
   uploadFn,
+  onUploadingChange,
 }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -42,6 +44,7 @@ export function ImageUpload({
 
     if (uploadFn) {
       setUploading(true);
+      onUploadingChange?.(true);
       try {
         const url = await uploadFn(file);
         onChange(url);
@@ -49,6 +52,7 @@ export function ImageUpload({
         setError("Error al subir imagen");
       } finally {
         setUploading(false);
+        onUploadingChange?.(false);
       }
       return;
     }
@@ -121,8 +125,10 @@ export function ImageUpload({
           <img src={value} alt="Preview" className="w-full h-full object-cover" />
         </div>
         <button
+          type="button"
+          aria-label="Quitar imagen"
           onClick={handleRemove}
-          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-md opacity-0 group-hover:opacity-100"
+          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-md opacity-100"
         >
           <X className="w-3.5 h-3.5" />
         </button>

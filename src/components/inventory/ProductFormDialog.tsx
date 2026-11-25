@@ -74,6 +74,7 @@ export function ProductFormDialog({
 
   const formFamily = watch("product_family");
   const formCategoryGroup = watch("category_group");
+  const [imageUploading, setImageUploading] = useState(false);
   const formImageUrl = watch("image_url");
   const formSelectedMachineIds = watch("selectedMachineIds");
   const formPriceTiers = watch("priceTiers");
@@ -142,7 +143,7 @@ export function ProductFormDialog({
             {editingProduct ? "Editar Producto" : "Nuevo Producto"}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit(data => { if (!validCategory) { showError("Selecciona una categoría activa del administrador"); return; } onSave({ ...data, category: validCategory.name }); })} className="space-y-0">
+        <form onSubmit={handleSubmit(data => { if (imageUploading) return; if (!validCategory) { showError("Selecciona una categoría activa del administrador"); return; } onSave({ ...data, category: validCategory.name }); })} className="space-y-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
             <div className="space-y-2">
               <Label>Nombre *</Label>
@@ -406,8 +407,9 @@ export function ProductFormDialog({
               </Label>
               <ImageUpload
                 value={formImageUrl || null}
-                onChange={(url) => setValue("image_url", url || "")}
+                onChange={(url) => setValue("image_url", url || "", { shouldDirty: true, shouldValidate: true })}
                 uploadFn={storageService.processAndUpload.bind(storageService)}
+                onUploadingChange={setImageUploading}
                 previewClassName="w-32 h-32"
               />
             </div>
@@ -473,7 +475,7 @@ export function ProductFormDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isSaving || catalogLoading || !!catalogError || !validCategory || creatingCategory}
+              disabled={imageUploading || isSaving || catalogLoading || !!catalogError || !validCategory || creatingCategory}
               className="rounded-xl bg-orange-600 hover:bg-orange-700"
             >
               {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}

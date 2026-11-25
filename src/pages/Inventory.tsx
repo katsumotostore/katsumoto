@@ -1,6 +1,6 @@
 import { useManagedCatalog } from "@/hooks/useManagedCatalog";
 import { productCatalogFamily } from "@/lib/managed-catalog";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -130,6 +130,11 @@ export default function Inventory() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  useEffect(() => {
+    setDialogOpen(false);
+    setDetailOpen(false);
+    setAdjustOpen(false);
+  }, [branchId]);
 
   const alertCount = useMemo(() => {
     const wh = branches.find((b) => b.type === "warehouse" && b.is_active);

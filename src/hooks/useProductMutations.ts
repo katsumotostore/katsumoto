@@ -1,3 +1,5 @@
+import { branchService } from "@/services/branch.service";
+import { resolveBranchId } from "@/lib/utils/stock";
 import { useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useBranches } from "@/hooks/useBranches";
@@ -11,7 +13,7 @@ import type { ProductFormValues, StockAdjustValues } from "@/lib/schemas";
 
 export function useProductMutations() {
   const queryClient = useQueryClient();
-  const { branches } = useBranches();
+  const { branches, selectedBranchId } = useBranches();
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
@@ -25,9 +27,11 @@ export function useProductMutations() {
     mutationFn: async ({
       data,
       editingProduct,
+      branchId,
     }: {
       data: ProductFormValues;
       editingProduct: Product | null;
+      branchId: string;
     }) => {
       const productPayload: Partial<ProductFormData> = {
         name: data.name,
@@ -48,11 +52,16 @@ export function useProductMutations() {
         tags: data.tags || [],
       };
 
+      if (editingProduct && branchId !== "all") { delete productPayload.min_stock; delete productPayload.max_stock; }
       let savedProduct: Product;
       if (editingProduct) {
         savedProduct = await productService.update(editingProduct.id, productPayload);
       } else {
         savedProduct = await productService.create(productPayload as ProductFormData);
+      }
+
+      if (editingProduct && branchId !== "all") {
+        await branchService.setStockLimits(resolveBranchId(branches, branchId), savedProduct.id, data.min_stock, data.max_stock);
       }
 
       await productService.saveMachineModels(savedProduct.id, data.selectedMachineIds);
@@ -127,10 +136,10 @@ export function useProductMutations() {
   });
 
   const saveProduct = useCallback((data: ProductFormValues, editingProduct: Product | null) =>
-    saveProductMutation.mutate({ data, editingProduct }), [saveProductMutation]);
+    saveProductMutation.mutate({ data, editingProduct, branchId: selectedBranchId }), [saveProductMutation, selectedBranchId]);
 
   const saveProductAsync = useCallback((data: ProductFormValues, editingProduct: Product | null) =>
-    saveProductMutation.mutateAsync({ data, editingProduct }), [saveProductMutation]);
+    saveProductMutation.mutateAsync({ data, editingProduct, branchId: selectedBranchId }), [saveProductMutation, selectedBranchId]);
 
   const deleteProduct = useCallback((id: string) => deleteProductMutation.mutate(id), [deleteProductMutation]);
 

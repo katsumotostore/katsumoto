@@ -12,6 +12,10 @@ function computeIsSelva(data: Partial<BranchFormData>): boolean {
 }
 
 export const branchService = {
+  async setStockLimits(branchId: string, productId: string, minStock: number, maxStock: number): Promise<void> {
+    const { error } = await supabase.from("branch_stock").upsert({ branch_id: branchId, product_id: productId, min_stock: minStock, max_stock: maxStock }, { onConflict: "branch_id,product_id" });
+    if (error) throw error;
+  },
   async getAll(): Promise<Branch[]> {
     const orgId = await getCurrentOrgId();
     const { data, error } = await supabase
