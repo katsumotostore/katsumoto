@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useManagedCatalog } from "@/hooks/useManagedCatalog";
 import { categoryService } from "@/services/category.service";
 import { showError } from "@/utils/toast";
@@ -108,7 +108,9 @@ export function ProductFormDialog({
   const canManage = !!user && ["owner","admin","inventory"].includes(user.role);
   const [categorySearch, setCategorySearch] = useState("");
   const [creatingCategory, setCreatingCategory] = useState(false);
-  const family = catalog.families.find(f => f.key === formFamily);
+  const [chosenFamily, setChosenFamily] = useState<string | null>(null);
+  useEffect(() => { setChosenFamily(null); setCategorySearch(""); }, [open, editingProduct?.id]);
+  const family = catalog.families.find(f => f.id === (chosenFamily ?? catalog.groups.find(g => g.key === formCategoryGroup)?.familyId));
   const formGroups = catalog.groups.filter(g => g.familyId === family?.id);
   const group = formGroups.find(g => g.key === formCategoryGroup);
   const formCategories = catalog.categories.filter(c => c.groupId === group?.id);
@@ -212,7 +214,14 @@ export function ProductFormDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Grupo de Categoría</Label>
+              <Label>Familia</Label><p className="text-xs text-muted-foreground">Ejemplo: Carburador. Independiente del tipo Producto o Servicio.</p>
+              <Select value={family?.id ?? ""} onValueChange={id => { setChosenFamily(id); setValue("category_group", ""); setValue("category_id", null); setValue("category", ""); }}>
+                <SelectTrigger><SelectValue placeholder="Selecciona una familia" /></SelectTrigger>
+                <SelectContent>{catalog.families.map(f => <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Grupo</Label><p className="text-xs text-muted-foreground">Ejemplo: Original o Alternativo.</p>
               <Select
                 value={formCategoryGroup}
                 onValueChange={(v) => {
@@ -235,11 +244,11 @@ export function ProductFormDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Categoría administrada</Label>
+              <Label>Categoría administrada</Label><p className="text-xs text-muted-foreground">Ejemplo: STIHL o STIHL2, según el grupo.</p>
               <Input aria-label="Buscar o crear categoría" placeholder="Buscar categoría…" value={categorySearch} onChange={e => setCategorySearch(e.target.value)} disabled={!group || catalogLoading} />
               <Select value={validCategory?.id ?? ""} onValueChange={chooseCategory} disabled={!group || catalogLoading || !!catalogError}>
                 <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecciona una categoría" /></SelectTrigger>
-                <SelectContent>{formCategories.filter(c => c.id === categoryId || c.name.toLocaleLowerCase().includes(categorySearch.toLocaleLowerCase())).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                <SelectContent>{formCategories.filter(c => c.id === categoryId || c.name.toLocaleLowerCase().includes(categorySearch.toLocaleLowerCase())).map(c => <SelectItem key={c.id} value={c.id}><span className="flex items-center gap-2">{c.imageUrl && <img src={c.imageUrl} alt="" className="h-7 w-7 object-contain rounded" />}{c.name}</span></SelectItem>)}</SelectContent>
               </Select>
               {catalogError && <p role="alert" className="text-sm text-destructive">No se pudo cargar el catálogo. Recarga para reintentar.</p>}
               {!validCategory && editingProduct && <p className="text-sm text-amber-700">Clasificación anterior: {formCategory || editingProduct.category}. Selecciona una categoría activa para guardar.</p>}

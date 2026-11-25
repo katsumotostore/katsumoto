@@ -1,3 +1,4 @@
+import { productCatalogFamily } from "@/lib/managed-catalog";
 import { useState, useMemo, useEffect } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useSearchParams } from "react-router-dom";
@@ -79,12 +80,12 @@ export default function StoreIndex() {
       if (!p.is_active) return false;
       const q = (debouncedSearch || searchQuery).toLowerCase();
       if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q) && !p.category.toLowerCase().includes(q)) return false;
-      if (familyFilter !== "all" && p.product_family !== familyFilter) return false;
+      if (familyFilter !== "all" && productCatalogFamily(catalog, p) !== familyFilter) return false;
       if (groupFilter !== "all" && p.category_group !== groupFilter) return false;
       if (selectedCategory !== "all" && p.category_id !== selectedCategory) return false;
       return true;
     });
-  }, [allProducts, familyFilter, groupFilter, selectedCategory, debouncedSearch, searchQuery]);
+  }, [catalog, allProducts, familyFilter, groupFilter, selectedCategory, debouncedSearch, searchQuery]);
 
   const allCategories = useMemo(() => catalogCategories(catalog, familyFilter, groupFilter), [catalog, familyFilter, groupFilter]);
 

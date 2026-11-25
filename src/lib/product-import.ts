@@ -2,14 +2,14 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate';
 
-export const PRODUCT_HEADERS = ['SKU *', 'Nombre del producto *', 'Familia *', 'Grupo *', 'Categoria *', 'Unidad *', 'Precio unitario final (S/) *', 'Costo unitario (S/)', 'Stock inicial', 'Stock minimo', 'Stock maximo', 'Afectacion IGV *', 'Proveedor', 'Etiquetas', 'Descripcion', 'Imagen URL'];
+export const PRODUCT_HEADERS = ['SKU *', 'Nombre del producto *', 'Tipo *', 'Grupo *', 'Categoria *', 'Unidad *', 'Precio unitario final (S/) *', 'Costo unitario (S/)', 'Stock inicial', 'Stock minimo', 'Stock maximo', 'Afectacion IGV *', 'Proveedor', 'Etiquetas', 'Descripcion', 'Imagen URL'];
 export const TIER_HEADERS = ['SKU *', 'Etiqueta *', 'Desde cantidad *', 'Precio unitario final (S/) *'];
 export interface ImportRow { row: number; sku: string; fields: Record<string, unknown>; stock: number; tiers: { label: string; min_quantity: number; price_cents: number }[]; errors: string[] }
 export interface ImportResult { row: number; sku: string; status: 'created' | 'updated' | 'skipped' | 'error'; message?: string; product_id?: string; expected?: string; before?: Record<string, unknown>; after?: Record<string, unknown>; stock?: number; tiers?: unknown[] }
 const keys = ['sku','name','product_family','category_group','category','unit','price_cents','cost_cents','stock','min_stock','max_stock','tax_affectation','supplier','tags','description','image_url'];
 export const normalizeHeader = (value: unknown) => String(value ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\*/g, '').replace(/[_]/g, ' ').replace(/\s+/g, ' ').trim();
 const aliases: Record<string, string> = Object.fromEntries(PRODUCT_HEADERS.map((h, i) => [normalizeHeader(h), keys[i]]));
-Object.assign(aliases, { nombre:'name', 'grupo de categoria':'category_group', categoria:'category', 'precio (s/)':'price_cents', 'precio venta (s/.)':'price_cents', 'costo (s/)':'cost_cents', 'costo (s/.)':'cost_cents', 'stock actual':'stock', 'tags / marca':'tags', 'tags (separados por ;)':'tags', 'imagen del producto (url o ruta)':'image_url', 'familia (productos/servicios)':'product_family', 'grupo (repuestos/herramientas/...)':'category_group', 'afectacion igv':'tax_affectation' });
+Object.assign(aliases, { familia:'product_family', nombre:'name', 'grupo de categoria':'category_group', categoria:'category', 'precio (s/)':'price_cents', 'precio venta (s/.)':'price_cents', 'costo (s/)':'cost_cents', 'costo (s/.)':'cost_cents', 'stock actual':'stock', 'tags / marca':'tags', 'tags (separados por ;)':'tags', 'imagen del producto (url o ruta)':'image_url', 'familia (productos/servicios)':'product_family', 'grupo (repuestos/herramientas/...)':'category_group', 'afectacion igv':'tax_affectation' });
 export function importNumber(value: unknown, integer = false): number {
   if (typeof value !== 'number' && (typeof value !== 'string' || !/^\d+(?:[.,]\d{1,2})?$/.test(value.trim()))) throw new Error('Número inválido: usa números sin separadores de miles ni símbolos');
   const n = typeof value === 'number' ? value : Number(String(value).trim().replace(',', '.'));
@@ -97,10 +97,10 @@ export function prepareProductTemplate(bytes: Uint8Array, catalogs: {familia:str
     return `<c r="${ref}"${style?` s="${style}"`:''} t="inlineStr"><is><t xml:space="preserve">${xml(value)}</t></is></c>`;
   };
   const groups=[...new Set(catalogs.map(c=>c.grupo))];
-  const rows=[['Familia','Grupo','Categoria','Origen','','Categorias disponibles','','Grupos disponibles'],...catalogs.map((c,i)=>[c.familia,c.grupo,c.categoria,'Catálogo del backend actual','',c.categoria,'',groups[i]||''])];
+  const rows=[['Tipo','Grupo','Categoria','Origen','','Categorias disponibles','','Grupos disponibles'],...catalogs.map((c,i)=>[c.familia,c.grupo,c.categoria,'Catálogo del backend actual','',c.categoria,'',groups[i]||''])];
   const data=rows.map((row,i)=>`<row r="${i+1}"${i===0?' ht="42" customHeight="1"':''}>${row.map((v,j)=>cell(sheet,`${String.fromCharCode(65+j)}${i+1}`,v)).join('')}</row>`).join('');
   zip[sheetPath]=strToU8(sheet.replace(/<sheetData[\s\S]*?<\/sheetData>/,`<sheetData>${data}</sheetData>`).replace(/<dimension[^>]*\/>/,`<dimension ref="A1:H${rows.length}"/>`));
-  const products=readXml('xl/worksheets/sheet1.xml').replace(/(<dataValidation\b[^>]*sqref="D2:D201"[^>]*>[\s\S]*?<formula1>)[\s\S]*?(<\/formula1>)/,`$1Catalogos!$H$2:$H$${groups.length+1}$2`);
+  const products=readXml('xl/worksheets/sheet1.xml').replace(/<c\b[^>]*r="C1"[^>]*>[\s\S]*?<\/c>/, cell(readXml('xl/worksheets/sheet1.xml'),'C1','Tipo *')).replace(/(<dataValidation\b[^>]*sqref="D2:D201"[^>]*>[\s\S]*?<formula1>)[\s\S]*?(<\/formula1>)/,`$1Catalogos!$H$2:$H$${groups.length+1}$2`);
   zip['xl/worksheets/sheet1.xml']=strToU8(products.replace(/Catalogos!\$F\$2:\$F\$\d+/g,`Catalogos!$F$2:$F$${rows.length}`));
   const guide=XLSX.read(bytes,{type:'array'}).Sheets.Guia;
   const guideRows=XLSX.utils.sheet_to_json<string[]>(guide,{header:1});

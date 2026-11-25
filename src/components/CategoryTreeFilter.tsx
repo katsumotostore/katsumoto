@@ -18,8 +18,8 @@ export function CategoryTreeFilter({ familyFilter, groupFilter, categoryFilter, 
   if (error) return <p role="alert" className="text-sm text-destructive">No se pudo cargar el catálogo administrado. Recarga para reintentar.</p>;
   return <>
     <Select value={familyFilter} onValueChange={v => onChange(v,"all","all")} disabled={isLoading}>
-      <SelectTrigger className={className} aria-label="Tipo de artículo"><SelectValue placeholder="Tipo" /></SelectTrigger>
-      <SelectContent><SelectItem value="all">Productos y servicios</SelectItem>{data.families.map(f => <SelectItem key={f.id} value={f.key}>{f.label}</SelectItem>)}</SelectContent>
+      <SelectTrigger className={className} aria-label="Familia"><SelectValue placeholder="Familia" /></SelectTrigger>
+      <SelectContent><SelectItem value="all">Todas las familias</SelectItem>{data.families.map(f => <SelectItem key={f.id} value={f.key}>{f.label}</SelectItem>)}</SelectContent>
     </Select>
     <Select value={groupFilter} onValueChange={v => onChange(familyFilter,v,"all")} disabled={isLoading}>
       <SelectTrigger className={className} aria-label="Grupo"><SelectValue placeholder="Grupo" /></SelectTrigger>

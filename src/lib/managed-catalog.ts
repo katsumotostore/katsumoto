@@ -8,7 +8,7 @@ export interface ManagedCatalog {
 export const EMPTY_CATALOG: ManagedCatalog = { families: [], groups: [], categories: [] };
 
 export function activeCatalog(data: ManagedCatalog): ManagedCatalog {
-  const families = data.families.filter(f => f.isActive !== false && ["productos", "servicios"].includes(f.key));
+  const families = data.families.filter(f => f.isActive !== false);
   const groups = data.groups.filter(g => g.isActive !== false && families.some(f => f.id === g.familyId));
   const categories = data.categories.filter(c => c.isActive !== false && groups.some(g => g.id === c.groupId));
   return { families, groups, categories };
@@ -27,4 +27,10 @@ export function catalogTree(data: ManagedCatalog) {
 export function getGroupInfo(key: string, groups?: ManagedCategoryGroup[]) {
   const group = groups?.find(g => g.key === key);
   return { label: group?.label ?? key, color: group?.color ?? "bg-muted text-muted-foreground" };
+}
+
+export function productCatalogFamily(data: ManagedCatalog, product: { category_id?: string | null; category_group: string }) {
+ const category = data.categories.find(c => c.id === product.category_id);
+ const group = data.groups.find(g => category ? g.id === category.groupId : g.key === product.category_group);
+ return data.families.find(f => f.id === group?.familyId)?.key;
 }

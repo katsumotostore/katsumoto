@@ -1,3 +1,4 @@
+import { productCatalogFamily, catalogCategories } from "@/lib/managed-catalog";
 import { useState, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import type { Product, PriceTier, Cents } from "@/lib/types";
@@ -34,20 +35,25 @@ const STOCK_OPTIONS: { value: StockFilter; label: string }[] = [
 export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosProductGridProps) {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
-  const [familyFilter, setFamilyFilter] = useState("all");
-  const [groupFilter, setGroupFilter] = useState("all");
+  const [familyFilter, updateFamilyFilter] = useState("all");
+  const setFamilyFilter = (value: string) => { updateFamilyFilter(value); setCategoryFilter("all"); };
+  const [groupFilter, updateGroupFilter] = useState("all");
+  const setGroupFilter = (value: string) => { updateGroupFilter(value); setCategoryFilter("all"); };
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const [page, setPage] = useState(1);
   const [justAdded, setJustAdded] = useState<string | null>(null);
 
-  const { catalog: { families: managedFamilies, groups: managedGroups } } = useManagedCatalog();
+  const { catalog } = useManagedCatalog();
+  const { families: managedFamilies, groups: managedGroups } = catalog;
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
   const families = useMemo(() => {
     return managedFamilies.map((fam) => {
-      const count = products.filter((p) => p.product_family === fam.key).length;
+      const count = products.filter((p) => productCatalogFamily(catalog, p) === fam.key).length;
       return { ...fam, count };
     }).filter((fam) => fam.count > 0);
-  }, [managedFamilies, products]);
+  }, [catalog, managedFamilies, products]);
 
   const groups = useMemo(() => {
     const familyId = familyFilter !== "all"
@@ -79,9 +85,9 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
       if (familyFilter !== "all") {
         const fam = managedFamilies.find(f => f.key === familyFilter);
         if (fam) {
-          matchFamily = p.product_family === fam.key;
+          matchFamily = productCatalogFamily(catalog, p) === fam.key;
         } else {
-          matchFamily = p.product_family === familyFilter;
+          matchFamily = productCatalogFamily(catalog, p) === familyFilter;
         }
       }
 
@@ -100,9 +106,9 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
       else if (stockFilter === "low") matchStock = p.stock > 0 && p.stock <= p.min_stock;
       else if (stockFilter === "out") matchStock = p.stock === 0;
 
-      return matchSearch && matchFamily && matchGroup && matchStock;
+      return matchSearch && matchFamily && matchGroup && matchStock && (typeFilter === "all" || p.product_family === typeFilter) && (categoryFilter === "all" || p.category_id === categoryFilter);
     });
-  }, [products, debouncedSearch, familyFilter, groupFilter, stockFilter, managedFamilies, managedGroups]);
+  }, [catalog, typeFilter, categoryFilter, products, debouncedSearch, familyFilter, groupFilter, stockFilter, managedFamilies, managedGroups]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -112,13 +118,13 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
   }, [filtered, safePage]);
 
   const handleAdd = (product: Product) => {
-    if (disabled || product.stock === 0) return;
+    if (disabled || (product.product_family !== "servicios" && product.stock === 0)) return;
     onAdd(product);
     setJustAdded(product.id);
     setTimeout(() => setJustAdded(null), 400);
   };
 
-  const hasActiveFilters = familyFilter !== "all" || groupFilter !== "all" || stockFilter !== "all" || search !== "";
+  const hasActiveFilters = typeFilter !== "all" || categoryFilter !== "all" || familyFilter !== "all" || groupFilter !== "all" || stockFilter !== "all" || search !== "";
 
   const clearFilters = () => {
     setSearch("");
@@ -132,6 +138,8 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
 
   return (
     <div className="flex flex-col h-full">
+<div className="space-y-3"><div className="flex gap-2">{[["all","Todos"],["productos","Productos"],["servicios","Servicios"]].map(([id,label]) => <button key={id} onClick={() => {setTypeFilter(id);setPage(1);}} className={`px-4 py-2 rounded-xl text-sm font-semibold ${typeFilter===id?"bg-primary text-primary-foreground":"bg-muted"}`}>{label}</button>)}</div><div className="flex gap-2 overflow-x-auto pb-2"><button className="text-sm px-3 border rounded-xl" onClick={()=>setCategoryFilter("all")}>Todas las categorías</button>{catalogCategories(catalog,familyFilter,groupFilter).map(c=><button key={c.id} onClick={()=>{setCategoryFilter(c.id);setPage(1);}} className={`min-w-24 p-2 rounded-xl border text-xs ${categoryFilter===c.id?"border-primary bg-primary/10":""}`}>{c.imageUrl?<img src={c.imageUrl} alt="" className="h-10 w-16 mx-auto object-contain mb-1"/>:<Tag className="h-8 w-8 mx-auto mb-1"/>}{c.name}</button>)}</div></div>
+
       <div className="flex items-center gap-2 px-2.5 py-2 border-b bg-card/50 flex-shrink-0 flex-wrap">
         <div className="relative flex-1 min-w-[160px]">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -250,7 +258,7 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
       <div className="flex-1 min-h-0 overflow-auto p-3">
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
           {paginated.map((product) => {
-            const isOut = product.stock === 0;
+            const isOut = product.product_family !== "servicios" && product.stock === 0;
             const isLow = product.stock > 0 && product.stock <= product.min_stock;
             const wasJustAdded = justAdded === product.id;
             const taxType = product.tax_affectation || "gravado";
@@ -282,7 +290,7 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
                     : isLow ? "bg-amber-500/90 text-white"
                     : "bg-emerald-500/90 text-white"
                   }`}>
-                    {isOut ? "AGOT" : product.stock}
+                    {product.product_family === "servicios" ? "SERV" : isOut ? "AGOT" : product.stock}
                   </div>
                   {tierInfo && !isOut && (
                     <div className="absolute bottom-1 left-1 right-1">

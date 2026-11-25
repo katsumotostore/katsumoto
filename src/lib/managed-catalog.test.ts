@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeCatalog, catalogCategories, catalogTree, type ManagedCatalog } from "./managed-catalog";
+import { activeCatalog, catalogCategories, catalogTree, productCatalogFamily, type ManagedCatalog } from "./managed-catalog";
 const data: ManagedCatalog = {
   families: [
     {id:'f1',key:'productos',label:'Productos',icon:'',color:'',activeColor:'',order:0},
@@ -19,9 +19,14 @@ const data: ManagedCatalog = {
   ],
 };
 describe('catálogo administrado',()=>{
-  it('excluye tipos heredados y ramas archivadas sin perder los datos de origen',()=>{
+  it('obtiene la familia desde la categoría independientemente del tipo operativo',()=>{
+    const product = {category_id:'c2',category_group:'repuestos',product_family:'productos'};
+    expect(productCatalogFamily(data,product)).toBe('servicios');
+    expect(product.product_family).toBe('productos');
+  });
+  it('admite familias libres y excluye ramas archivadas sin perder los datos de origen',()=>{
     const active=activeCatalog(data);
-    expect(active.families.map(f=>f.key)).toEqual(['productos','servicios']);
+    expect(active.families.map(f=>f.key)).toEqual(['productos','servicios','n']);
     expect(active.categories.map(c=>c.id)).toEqual(['c1','c2']);
     expect(data.categories).toHaveLength(4);
   });

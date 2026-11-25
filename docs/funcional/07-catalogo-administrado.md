@@ -4,21 +4,25 @@ Productos, filtros de inventario, POS, tienda e importación comparten las tabla
 
 ## Clasificación
 
-El tipo permanece controlado: Producto o Servicio, porque determina el tratamiento del inventario. Dentro de cada tipo se administran grupos y categorías. products.category_id identifica la categoría; los campos de texto anteriores se conservan sincronizados para compatibilidad.
+Ejemplos confirmados: **Carburador → Original → STIHL** y **Carburador → Alternativo → STIHL2**. Producto/Servicio es un tipo separado. La migración 20261125020000 archiva las familias heredadas que representaban tipos, convierte las clasificaciones anteriores en familias comerciales y conserva los artículos en ramas explícitas «Por clasificar» cuando se desconoce origen o categoría. No asigna marcas por suposición; las imágenes existentes se preservan en las categorías pendientes. El administrador permite completar estas asignaciones individualmente o por categoría.
+
+El tipo permanece controlado: Producto o Servicio, porque determina el tratamiento del inventario. Es independiente de la clasificación Familia → Grupo → Categoría. Las familias son administrables. products.category_id identifica la categoría y permite obtener su grupo y familia. El campo legado products.product_family conserva únicamente el tipo operativo para mantener compatibles las ventas, stock y servicios; no representa la familia comercial.
 
 Renombrar una categoría actualiza su nombre en los productos vinculados sin modificar comprobantes históricos. No se admiten categorías de otra organización, destinos archivados ni duplicados normalizados dentro del mismo grupo.
 
 ## Operación
 
 - El formulario de producto permite buscar una categoría del grupo elegido y crearla con permisos de administración de inventario.
-- Cambiar tipo o grupo requiere seleccionar nuevamente la categoría.
+- Cambiar familia o grupo requiere seleccionar nuevamente la categoría. Cambiar tipo conserva la clasificación y se impide cuando el artículo tiene existencias.
 - Categorías permite buscar, ver cantidades de productos, editar nombres e imágenes y mostrar archivados.
 - Archivar conserva los vínculos existentes y excluye la categoría de nuevas asignaciones.
-- Reasignar mueve todos los productos de la categoría, incluidos los inactivos, a otra del mismo tipo y archiva el origen en una transacción auditada.
+- Reasignar mueve todos los productos de la categoría, incluidos los inactivos, a otra de la misma organización y archiva el origen en una transacción auditada. Puede cruzar familias sin modificar el tipo de los artículos.
 - Los productos sin vínculo se muestran como pendientes para asignarlos explícitamente.
 - La plantilla de importación toma grupos y categorías activos del administrador.
 
 ## Migración de datos
+
+La migración 20261125010000 separa el tipo de la familia. Conserva todos los nombres y vínculos actuales, permite crear y renombrar familias libremente y no reactiva automáticamente familias archivadas de prueba. Aplicarla antes del nuevo frontend. En Excel, la columna antes llamada Familia (productos/servicios) pasa a llamarse Tipo; se siguen aceptando las plantillas anteriores. La familia comercial se obtiene del grupo seleccionado.
 
 Las migraciones 20261124010000, 20261124020000 y 20261124030000 incorporan vínculos, controles, auditoría y permisos de lectura pública de category_id. Se registra una copia de la clasificación anterior en audit_log. Las coincidencias ambiguas quedan pendientes; no se fusionan por suposición.
 

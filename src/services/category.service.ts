@@ -40,8 +40,8 @@ function toCategory(row: Record<string, unknown>): ManagedCategory {
 }
 
 export const categoryService = {
-  async setActive(kind: "category" | "group", id: string, active: boolean) {
-    const table = kind === "category" ? "managed_categories" : "managed_category_groups";
+  async setActive(kind: "category" | "group" | "family", id: string, active: boolean) {
+    const table = kind === "category" ? "managed_categories" : kind === "group" ? "managed_category_groups" : "managed_category_families";
     const { error } = await supabase.from(table).update({ is_active: active }).eq("id", id).eq("organization_id", getCurrentOrgId());
     if (error) throw error;
   },

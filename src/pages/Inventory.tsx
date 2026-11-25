@@ -1,3 +1,5 @@
+import { useManagedCatalog } from "@/hooks/useManagedCatalog";
+import { productCatalogFamily } from "@/lib/managed-catalog";
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -109,6 +111,7 @@ export default function Inventory() {
   const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
+  const { all: classification } = useManagedCatalog();
   const [familyFilter, setFamilyFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -180,7 +183,7 @@ export default function Inventory() {
     return branchProducts.filter((p) => {
       const q = debouncedSearch.toLowerCase();
       const matchSearch = p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcode.includes(q);
-      const matchFamily = familyFilter === "all" || p.product_family === familyFilter;
+      const matchFamily = familyFilter === "all" || productCatalogFamily(classification, p) === familyFilter;
       const matchGroup = groupFilter === "all" || p.category_group === groupFilter;
       const matchCategory = categoryFilter === "all" || (categoryFilter === "unlinked" ? !p.category_id : p.category_id === categoryFilter);
       const matchMachine = !machineCompatibleIds || machineCompatibleIds.has(p.id);
@@ -188,7 +191,7 @@ export default function Inventory() {
       const matchTag = tagFilter === "all" || (p.tags && p.tags.includes(tagFilter));
       return matchSearch && matchFamily && matchGroup && matchCategory && matchMachine && matchTax && matchTag;
     });
-  }, [branchProducts, debouncedSearch, familyFilter, groupFilter, categoryFilter, machineCompatibleIds, taxFilter, tagFilter]);
+  }, [classification, branchProducts, debouncedSearch, familyFilter, groupFilter, categoryFilter, machineCompatibleIds, taxFilter, tagFilter]);
 
   const marginMap = useMemo(() => {
     const map = new Map<string, ReturnType<typeof getMarginRange>>();
