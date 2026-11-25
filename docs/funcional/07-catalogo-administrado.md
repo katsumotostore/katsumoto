@@ -16,6 +16,7 @@ Renombrar una categoría actualiza su nombre en los productos vinculados sin mod
 - Cambiar familia o grupo requiere seleccionar nuevamente la categoría. Cambiar tipo conserva la clasificación y se impide cuando el artículo tiene existencias.
 - Categorías permite buscar, ver cantidades de productos, editar nombres e imágenes y mostrar archivados.
 - Archivar conserva los vínculos existentes y excluye la categoría de nuevas asignaciones.
+- Eliminar requiere confirmación y permiso owner/admin/inventory. Borra la categoría y deja sus artículos con category_id nulo y los textos de grupo/categoría vacíos. Eliminar un grupo o familia incluye sus descendientes. Se conservan artículos, tipo, precios, stock y comprobantes; el cambio queda auditado en una transacción. Los artículos aparecen en pendientes para volver a asignarlos. Requiere la migración 20261125040000.
 - Reasignar mueve todos los productos de la categoría, incluidos los inactivos, a otra de la misma organización y archiva el origen en una transacción auditada. Puede cruzar familias sin modificar el tipo de los artículos.
 - Los productos sin vínculo se muestran como pendientes para asignarlos explícitamente.
 - La plantilla de importación toma grupos y categorías activos del administrador.

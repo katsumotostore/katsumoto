@@ -40,6 +40,11 @@ function toCategory(row: Record<string, unknown>): ManagedCategory {
 }
 
 export const categoryService = {
+  async deleteNode(kind: "family" | "group" | "category", id: string): Promise<number> {
+    const { data, error } = await supabase.rpc("delete_catalog_node", { p_kind: kind, p_id: id });
+    if (error) throw error;
+    return data;
+  },
   async setActive(kind: "category" | "group" | "family", id: string, active: boolean) {
     const table = kind === "category" ? "managed_categories" : kind === "group" ? "managed_category_groups" : "managed_category_families";
     const { error } = await supabase.from(table).update({ is_active: active }).eq("id", id).eq("organization_id", getCurrentOrgId());

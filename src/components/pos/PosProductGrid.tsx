@@ -138,7 +138,7 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
 
   return (
     <div className="flex flex-col h-full">
-<div className="space-y-3"><div className="flex gap-2">{[["all","Todos"],["productos","Productos"],["servicios","Servicios"]].map(([id,label]) => <button key={id} onClick={() => {setTypeFilter(id);setPage(1);}} className={`px-4 py-2 rounded-xl text-sm font-semibold ${typeFilter===id?"bg-primary text-primary-foreground":"bg-muted"}`}>{label}</button>)}</div><div className="flex gap-2 overflow-x-auto pb-2"><button className="text-sm px-3 border rounded-xl" onClick={()=>setCategoryFilter("all")}>Todas las categorías</button>{catalogCategories(catalog,familyFilter,groupFilter).map(c=><button key={c.id} onClick={()=>{setCategoryFilter(c.id);setPage(1);}} className={`min-w-24 p-2 rounded-xl border text-xs ${categoryFilter===c.id?"border-primary bg-primary/10":""}`}>{c.imageUrl?<img src={c.imageUrl} alt="" className="h-10 w-16 mx-auto object-contain mb-1"/>:<Tag className="h-8 w-8 mx-auto mb-1"/>}{c.name}</button>)}</div></div>
+<div className="space-y-3"><div className="flex gap-2">{[["all","Todos"],["productos","Productos"],["servicios","Servicios"]].map(([id,label]) => <button key={id} onClick={() => {setTypeFilter(id);setPage(1);}} className={`px-4 py-2 rounded-xl text-sm font-semibold ${typeFilter===id?"bg-primary text-primary-foreground":"bg-muted"}`}>{label}</button>)}</div><div className="flex gap-2 overflow-x-auto pb-2"><button className="text-sm px-3 border rounded-xl" onClick={()=>setCategoryFilter("all")}>Todas las categorías</button>{catalogCategories(catalog,familyFilter,groupFilter).map(c=><button key={c.id} onClick={()=>{setCategoryFilter(c.id);setPage(1);}} className={`min-w-24 p-2 rounded-xl border text-xs ${categoryFilter===c.id?"border-primary bg-primary/10":""}`}>{c.imageUrl?<img src={c.imageUrl} alt="" className="h-10 w-16 mx-auto object-contain mb-1"/>:<Tag className="h-8 w-8 mx-auto mb-1"/>}{c.name}{groupFilter === "all" && <span className="block text-[10px] text-muted-foreground mt-1">{managedFamilies.find(f => f.id === managedGroups.find(g => g.id === c.groupId)?.familyId)?.label} · {managedGroups.find(g => g.id === c.groupId)?.label}</span>}</button>)}</div></div>
 
       <div className="flex items-center gap-2 px-2.5 py-2 border-b bg-card/50 flex-shrink-0 flex-wrap">
         <div className="relative flex-1 min-w-[160px]">
@@ -184,7 +184,7 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
           <Select value={familyFilter} onValueChange={(v) => { setFamilyFilter(v); setGroupFilter("all"); setPage(1); }}>
             <SelectTrigger className="h-9 rounded-lg text-xs font-medium w-auto min-w-[140px] border bg-background">
               <SelectValue>
-                {familyFilter === "all" ? "Familia" : `${managedFamilies.find(f => f.key === familyFilter)?.label || familyFilter} (${families.find(f => f.key === familyFilter)?.count || 0})`}
+                {familyFilter === "all" ? "Familia" : `${managedFamilies.find(f => f.key === familyFilter)?.label || "Familia no disponible"} (${families.find(f => f.key === familyFilter)?.count || 0})`}
               </SelectValue>
             </SelectTrigger>
             <SelectContent className="max-h-72">
@@ -204,7 +204,7 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
               <SelectValue>
                 <span className="flex items-center gap-1.5">
                   <FolderTree className="w-3.5 h-3.5 text-muted-foreground" />
-                  {groupFilter === "all" ? "Grupo" : groupFilter}
+                  {groupFilter === "all" ? "Grupo" : managedGroups.find(g => g.key === groupFilter)?.label || "Grupo no disponible"}
                 </span>
               </SelectValue>
             </SelectTrigger>
@@ -212,7 +212,7 @@ export function PosProductGrid({ products, priceTiers, onAdd, disabled }: PosPro
               <SelectItem value="all" className="text-xs">Todos los grupos</SelectItem>
               {groups.map((g) => (
                 <SelectItem key={g.key} value={g.key} className="text-xs">
-                  {g.label} ({g.count})
+                  {g.label}{familyFilter === "all" ? ` · ${managedFamilies.find(f => f.id === g.familyId)?.label || "Familia no disponible"}` : ""} ({g.count})
                 </SelectItem>
               ))}
             </SelectContent>
